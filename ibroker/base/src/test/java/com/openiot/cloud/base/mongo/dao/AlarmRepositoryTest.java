@@ -167,6 +167,6 @@ public class AlarmRepositoryTest {
     assertThat(task).isNotNull().asList().hasSize(101);
     LocalDateTime end = LocalDateTime.now();
     assertThat(end.toInstant(UTC).toEpochMilli() - now.toInstant(UTC).toEpochMilli())
-        .isLessThan(1000);
+        .isLessThan(5000);
   }
 }
