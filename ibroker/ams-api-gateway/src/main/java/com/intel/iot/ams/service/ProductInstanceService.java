@@ -17,6 +17,7 @@ public class ProductInstanceService extends BaseService<Integer, ProductInstance
 
   @Autowired private ProductInstanceDao productInstanceDao;
 
+
   public List<ProductInstance> findByName(String name) {
 
     return productInstanceDao.findByProductName(name);

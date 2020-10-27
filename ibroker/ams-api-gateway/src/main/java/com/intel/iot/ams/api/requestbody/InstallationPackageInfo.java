@@ -33,6 +33,17 @@ public class InstallationPackageInfo {
   @SerializedName(value = "cfg_id_list")
   private List<CfgIdInfo> cfgIdList;
 
+  @SerializedName(value = "api_profiles")
+  private List<ApiProfile> apiProfiles;
+
+  public List<ApiProfile> getApiProfiles() {
+    return apiProfiles;
+  }
+
+  public void setApiProfiles(List<ApiProfile> apiProfiles) {
+    this.apiProfiles = apiProfiles;
+  }
+
   public String getProductName() {
     return productName;
   }
@@ -164,6 +175,41 @@ public class InstallationPackageInfo {
 
     public void setDefaultContent(String defaultContent) {
       this.defaultContent = defaultContent;
+    }
+  }
+
+  public class ApiProfile {
+    @SerializedName("api")
+    private String apiName;
+
+    @SerializedName("level")
+    private Integer level;
+
+    @SerializedName("backward")
+    private Integer backward;
+
+    public String getApiName() {
+      return apiName;
+    }
+
+    public void setApiName(String apiName) {
+      this.apiName = apiName;
+    }
+
+    public Integer getLevel() {
+      return level;
+    }
+
+    public void setLevel(Integer level) {
+      this.level = level;
+    }
+
+    public Integer getBackward() {
+      return backward;
+    }
+
+    public void setBackward(Integer backward) {
+      this.backward = backward;
     }
   }
 }

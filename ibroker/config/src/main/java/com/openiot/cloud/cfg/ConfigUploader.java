@@ -127,6 +127,15 @@ public class ConfigUploader {
                     ConstDef.CFG_PTN_PRJCFG,
                     ConstDef.CFG_TT_PRJ,
                     URLEncoder.encode(cf.getTargetId(), "UTF-8"));
+          } else if (cf.getTargetType().equals(ConstDef.CFG_TT_PLC_MGR)) {
+            amsUrl =
+                    String.format(
+                            amsUrlPattern.replace("product_name=iagent", "product_name=plc-manager"),
+                            amsUserCloudAddress,
+                            amsUserCloudPort,
+                            ConstDef.CFG_PTN_PLCMGRCFG,
+                            ConstDef.CFG_TT_DEV,
+                            URLEncoder.encode(cf.getTargetId(), "UTF-8"));
           } else {
             logger.warn("Skip for wrong config target type: {} ", cf);
             continue;

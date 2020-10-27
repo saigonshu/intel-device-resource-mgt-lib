@@ -12,6 +12,7 @@ import com.openiot.cloud.base.mongo.model.*;
 import com.openiot.cloud.base.service.model.ProjectDTO;
 import com.openiot.cloud.cfg.model.DeviceConfig;
 import com.openiot.cloud.cfg.model.GroupConfig;
+import com.openiot.cloud.cfg.model.PlcManagerConfig;
 import com.openiot.cloud.cfg.model.ProjectCfg;
 import com.openiot.cloud.sdk.service.IConnectRequest;
 import com.openiot.cloud.sdk.service.IConnectResponse;
@@ -20,7 +21,10 @@ import java.io.IOException;
 import java.util.List;
 import java.util.Optional;
 import java.util.concurrent.TimeUnit;
+import java.util.stream.Collector;
 import java.util.stream.Collectors;
+import java.util.stream.Stream;
+
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -149,6 +153,43 @@ public class ConfigTaskHandler implements IConnectResponseHandler {
         .map(dc -> dc.toJsonString())
         .filter(dcJson -> !dcJson.isEmpty())
         .ifPresent(dcJson -> addConfig(ConstDef.CFG_TT_DEVONGW, deviceId.get(), dcJson));
+
+    // generate plcmgr.cfg for plc-gateway
+    device.map(d->{
+      if(d.getStandard()==null) return null;
+
+      if (d.getStandard().equals(ConstDef.STANDARD_IAGENT)) {
+        if (d.getDeviceType().startsWith(ConstDef.DEV_TYPE_PLC_GW)) return d;
+      }else{
+        String dt = d.getDeviceType();
+        if (dt==null || (!dt.equals(ConstDef.DEV_TYPE_RPLC) && !dt.equals(ConstDef.DEV_TYPE_VPLC)))
+          return null;
+
+        Device gw = devRepo.findOneById(d.getiAgentId());
+        if (gw==null || gw.getDeviceType()==null) return null;
+        if (gw.getDeviceType().startsWith(ConstDef.DEV_TYPE_PLC_GW)) return gw;
+      }
+      return null;
+    }).filter(d->d!=null).ifPresent(d->generatePlcMgrConfiguration(d));
+
+  }
+
+  private void generatePlcMgrConfiguration(Device gateway) {
+    logger.debug("going to generatePlcMgrConfiguration for {}", gateway.getId());
+    Optional<List<Device>> childDevices = Optional.ofNullable(devRepo.findByIAgentId(gateway.getiAgentId()));
+    Optional<List<Device>> vplcs = childDevices.filter(ds->!ds.isEmpty()).map(ds -> ds.stream()
+            .filter(d -> d.getDeviceType().equals(ConstDef.DEV_TYPE_VPLC))
+            .collect(Collectors.toList()));
+    Optional<List<Device>> rplcs = childDevices.filter(ds->!ds.isEmpty()).map(ds -> ds.stream()
+            .filter(d -> d.getDeviceType().equals(ConstDef.DEV_TYPE_RPLC))
+            .collect(Collectors.toList()));
+    Optional<PlcManagerConfig> plcMgrCfg =
+            Optional.ofNullable(
+                    PlcManagerConfig.from(Optional.ofNullable(gateway), vplcs, rplcs));
+    plcMgrCfg
+            .map(dc -> dc.toJsonString())
+            .filter(dcJson -> !dcJson.isEmpty())
+            .ifPresent(dcJson -> addConfig(ConstDef.CFG_TT_PLC_MGR, gateway.getId(), dcJson));
   }
 
   public void generateGroupConfiguration(String groupName) {

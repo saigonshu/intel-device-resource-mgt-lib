@@ -25,6 +25,123 @@
     "n": "cardio"
   },
   {
+    "_id": "plc-gw",
+    "cs": {
+      "dl": 3600,
+      "rn": 10,
+      "uc": [
+        {
+          "cn": "name",
+          "cv": "cardio"
+        },
+        {
+          "cn": "ip",
+          "cv": "192.168.1.1"
+        },
+        {
+          "cn": "port",
+          "cv": "180"
+        },
+        {
+          "cn": "hb_ms",
+          "cv": "12"
+        },
+        {
+          "cn": "role",
+          "cv": "master"
+        },
+        {
+          "cn": "loss_action",
+          "cv": "reset"
+        }
+      ]
+    },
+    "grps": [],
+    "st":"iagent",
+    "dt":"plc-gateway.1.2",
+    "n": "plc-gw"
+  },
+  {
+    "_id": "vplc-1",
+    "ia":"plc-gw",
+    "cs": {
+      "uc": [
+        {
+          "cn": "plc-runtime",
+          "cv": "plc_runtime1"
+        },
+        {
+          "cn": "plc-runtime-ver",
+          "cv": "1.1"
+        },
+        {
+          "cn": "plc-app",
+          "cv": "plc_app1"
+        },
+        {
+          "cn": "plc-app-ver",
+          "cv": "2.1"
+        },
+        {
+          "cn": "start",
+          "cv": "auto"
+        },
+        {
+          "cn": "debug",
+          "cv": "true"
+        },
+        {
+          "cn": "local-standby",
+          "cv": "true"
+        },
+        {
+          "cn": "remote-standby",
+          "cv": "false"
+        }
+      ]
+    },
+    "grps": [],
+    "st":"lw2m",
+    "dt":"VPLC",
+    "n": "vplc-1"
+  },
+  {
+    "_id": "rplc-1",
+    "ia":"plc-gw",
+    "cs": {
+      "uc": [
+        {
+          "cn": "plc-runtime",
+          "cv": "plc_runtime1"
+        },
+        {
+          "cn": "plc-runtime-ver",
+          "cv": "1.1"
+        },
+        {
+          "cn": "plc-app",
+          "cv": "plc_app1"
+        },
+        {
+          "cn": "plc-app-ver",
+          "cv": "2.1"
+        },
+        {
+          "cn": "ip",
+          "cv": "192.168.1.1"
+        },
+        {
+          "cn": "port",
+          "cv": "10"
+        }
+      ]
+    },
+    "grps": [],
+    "st":"lw2m",
+    "dt":"RPLC",
+    "n": "rplc-1"
+  },
+  {
     "_id": "abs",
     "cs": {
       "as": [

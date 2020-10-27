@@ -10,6 +10,8 @@ import com.intel.iot.ams.api.requestbody.AddProductForClientInfo;
 import com.intel.iot.ams.entity.*;
 import com.intel.iot.ams.service.*;
 import com.intel.iot.ams.task.AmsTaskType;
+import com.intel.iot.ams.utils.AmsConstant;
+import com.intel.iot.ams.utils.AmsConstant.ProductCategory;
 import com.intel.iot.ams.utils.AotToolUtils;
 import java.util.ArrayList;
 import java.util.Date;
@@ -520,7 +522,7 @@ public class ClientProductDeployAPIs {
             "Client: " + clientUuid + " doesnot exist!", HttpStatus.BAD_REQUEST);
       }
       ProductInstance instance = null;
-      if (p.getCategory() == 4) {
+      if (p.getCategory() == AmsConstant.ProductCategory.imrt_app.toValue()) {
         instance =
             pInstanceSrv.findByNameAndVersionAndCpuAndPlatformAndOs(
                 p.getName(),
@@ -1168,13 +1170,13 @@ public class ClientProductDeployAPIs {
     }
 
     /** FW product name must be comply with client product name */
-    if (p.getCategory() == 2 && !p.getName().equals(client.getDeviceType())) {
+    if (p.getCategory() == AmsConstant.ProductCategory.fw_product.toValue() && !p.getName().equals(client.getDeviceType())) {
       return new ResponseEntity<String>(
           "Cannot deploy FW to different product!", HttpStatus.BAD_REQUEST);
     }
 
     /** If the product is fw_app_wasm and aot_enable is true, check if the aot can be done */
-    if (p.getCategory() == 5) {
+    if (p.getCategory() == AmsConstant.ProductCategory.fw_app_wasm.toValue()) {
       if (info.getAotEnable() != null && info.getAotEnable() == true) {
         if (instance.getAotEnable() == null || instance.getAotEnable() != true) {
           return new ResponseEntity<String>(
@@ -1271,7 +1273,7 @@ public class ClientProductDeployAPIs {
       }
 
       /** If the product is fw_app_wasm and aot_enable is true, check if the aot can be done */
-      if (p.getCategory() == 5 && info.getAotEnable() == true) {
+      if (p.getCategory() == AmsConstant.ProductCategory.fw_app_wasm.toValue() && info.getAotEnable() == true) {
         if (instance.getAotEnable() == null || instance.getAotEnable() != true) {
           return new ResponseEntity<String>(
               "Deployed product version has no AOT support!", HttpStatus.BAD_REQUEST);

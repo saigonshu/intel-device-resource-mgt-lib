@@ -4,6 +4,7 @@
 
 package com.intel.iot.ams.api;
 
+import com.google.common.base.Enums;
 import com.google.gson.*;
 import com.intel.iot.ams.api.requestbody.*;
 import com.intel.iot.ams.api.requestbody.BpkManifestInfo.ProductDep;
@@ -14,6 +15,7 @@ import com.intel.iot.ams.entity.*;
 import com.intel.iot.ams.service.*;
 import com.intel.iot.ams.task.AmsTaskType;
 import com.intel.iot.ams.utils.AmsConstant;
+import com.intel.iot.ams.utils.AmsConstant.ProductCategory;
 import com.intel.iot.ams.utils.ArrayUtils;
 import com.intel.iot.ams.utils.FileAndDirUtils;
 import com.intel.iot.ams.utils.HashUtils;
@@ -215,7 +217,29 @@ public class ProductMgrAPIs {
     if (uploadName.endsWith(".bpk")) {
       return handleBpkPkgUpload(file, request);
     } else if (uploadName.endsWith(".zip")) {
-      return handleZipPkgUpload(file, request);
+      try {
+        /** Save the uploaded file on AMS local space */
+        String temp_filename = String.valueOf(new Date().getTime());
+        FileAndDirUtils.saveFile(file, AmsConst.tempPath, temp_filename+".zip");
+        String tempDest = AmsConst.tempPath + temp_filename;
+        ZipFile zFile = new ZipFile(tempDest+".zip");
+        if (!zFile.isValidZipFile()) {
+          return new ResponseEntity<String>(String.format("invalid zip format file:%s", zFile.getFile()), HttpStatus.BAD_REQUEST);
+        }
+        /** Create temp unzip dir */
+        File tempDestDir = new File(tempDest);
+        if (!tempDestDir.exists()) {
+          tempDestDir.mkdir();
+        }
+        /** Unzip the file */
+        zFile.extractAll(tempDest);
+
+        return handleZipPkgUpload(tempDest, request);
+      } catch (IOException e) {
+        return new ResponseEntity<String>("/O ERROR", HttpStatus.INTERNAL_SERVER_ERROR);
+      } catch (ZipException e) {
+        return new ResponseEntity<String>("ZIP FILE ERROR", HttpStatus.INTERNAL_SERVER_ERROR);
+      }
     } else {
       return new ResponseEntity<String>("Unsupported package type!", HttpStatus.BAD_REQUEST);
     }
@@ -339,7 +363,7 @@ public class ProductMgrAPIs {
 
       /** Delete Product version from repository */
       try {
-        if (p.getCategory() == 4) {
+        if (p.getCategory() == ProductCategory.imrt_app.toValue()) {
           new File(AmsConst.repoPath + p.getName() + "/" + version + ".bpk").delete();
         } else {
           FileUtils.deleteDirectory(new File(AmsConst.repoPath + p.getName() + "/" + version));
@@ -419,19 +443,7 @@ public class ProductMgrAPIs {
     jProduct.addProperty("product_uuid", p.getUuid());
     jProduct.addProperty("name", p.getName());
 
-    String category = null;
-    if (p.getCategory() == 1) {
-      category = "software_product";
-    } else if (p.getCategory() == 2) {
-      category = "fw_product";
-    } else if (p.getCategory() == 3) {
-      category = "plugin_app";
-    } else if (p.getCategory() == 4) {
-      category = "imrt_app";
-    } else if (p.getCategory() == 5) {
-      category = "fw_app_wasm";
-    }
-
+    String category = ProductCategory.fromValue(p.getCategory()).toString();
     jProduct.addProperty("category", category);
 
     if (p.getDescription() != null) {
@@ -537,8 +549,19 @@ public class ProductMgrAPIs {
     return jProduct;
   }
 
-  private InstallationPackageInfo parsePkgInfo(String pkgInfoStr) {
+  private InstallationPackageInfo parsePkgInfo(String pkgInfoPath) {
     InstallationPackageInfo pkgInfo;
+    File fPkgInfo = new File(pkgInfoPath);
+    if (!fPkgInfo.exists()) {
+      return null;
+    }
+    String pkgInfoStr = null;
+    try {
+      pkgInfoStr = FileUtils.readFileToString(fPkgInfo);
+    } catch (IOException e) {
+      e.printStackTrace();
+      return null;
+    }
     Gson gson = new Gson();
     try {
       pkgInfo = gson.fromJson(pkgInfoStr, InstallationPackageInfo.class);
@@ -847,40 +870,12 @@ public class ProductMgrAPIs {
     return new ResponseEntity<String>(HttpStatus.OK);
   }
 
-  private ResponseEntity<String> handleZipPkgUpload(
-      MultipartFile file, HttpServletRequest request) {
-
+  public ResponseEntity<String> handleZipPkgUpload(
+      String unzipPath, HttpServletRequest request) {
+    Date upload_time = new Date();
     try {
-      /** Save the uploaded file on AMS local space */
-      Date upload_time = new Date();
-      String temp_filename = String.valueOf(upload_time.getTime()) + ".zip";
-      FileAndDirUtils.saveFile(file, AmsConst.tempPath, temp_filename);
-
-      /** Create temp unzip dir */
-      String tempDest = AmsConst.tempPath + String.valueOf(upload_time.getTime());
-      File tempDestDir = new File(tempDest);
-      if (!tempDestDir.exists()) {
-        tempDestDir.mkdir();
-      }
-
-      /** Unzip the file */
-      ZipFile zFile = new ZipFile(AmsConst.tempPath + temp_filename);
-      if (!zFile.isValidZipFile()) {
-        throw new ZipException("invalid zip file! " + zFile.getFile());
-      }
-      zFile.extractAll(tempDest);
-
       /** Read the package.info */
-      String pkgInfoPath = tempDest + "/package.info";
-      File fPkgInfo = new File(pkgInfoPath);
-      if (!fPkgInfo.exists()) {
-        // TODO: delete all temp files and dirs
-        return new ResponseEntity<String>(
-            "Installation package lacks of \"package.info\" file.", HttpStatus.BAD_REQUEST);
-      }
-      String pkgInfoStr = FileUtils.readFileToString(fPkgInfo);
-
-      InstallationPackageInfo pkgInfo = parsePkgInfo(pkgInfoStr);
+      InstallationPackageInfo pkgInfo = parsePkgInfo(unzipPath + "/package.info");
       if (pkgInfo == null
           || pkgInfo.getProductName() == null
           || pkgInfo.getCategory() == null
@@ -889,201 +884,48 @@ public class ProductMgrAPIs {
               && pkgInfo.getHostName() == null)) {
         // TODO: delete all temp files and dirs
         return new ResponseEntity<String>(
-            "\"package.info\" format is not correct!", HttpStatus.BAD_REQUEST);
+            "\"package.info\" format is not correct or it is missed!", HttpStatus.BAD_REQUEST);
+      }
+      List<ProductInstance> temp = piSrv.findByNameAndVersion(pkgInfo.getProductName(), pkgInfo.getVersion());
+      if (temp!=null && !temp.isEmpty()) {
+        // TODO: delete all temp files and dirs
+        return new ResponseEntity<String>(
+                "Product: "
+                        + pkgInfo.getProductName()
+                        + " already has uploaded this version: "
+                        + pkgInfo.getVersion(),
+                HttpStatus.CONFLICT);
       }
 
       /** Create product if necessary */
       Product p = pSrv.findByName(pkgInfo.getProductName());
 
-      /** set log elements */
+      /** Create product properties */
       String action = p == null ? "Add" : "Update";
-
       List<ProductProperty> propertyList = new ArrayList<ProductProperty>();
       if (p == null) {
-        p = new Product();
-        p.setUuid(UUID.randomUUID().toString());
-        p.setName(pkgInfo.getProductName());
-        if (pkgInfo.getCategory().toLowerCase().equals("software_product")) {
-          p.setCategory(1);
-        } else if (pkgInfo.getCategory().toLowerCase().equals("fw_product")) {
-          p.setCategory(2);
-        } else if (pkgInfo.getCategory().toLowerCase().equals("plugin_app")) {
-          p.setCategory(3);
-        } else if (pkgInfo.getCategory().toLowerCase().equals("imrt_app")) {
-          return new ResponseEntity<String>(
-              "iMRT app package should be BPK format!", HttpStatus.BAD_REQUEST);
-        } else if (pkgInfo.getCategory().toLowerCase().equals("fw_app_wasm")) {
-          p.setCategory(5);
-        }
-
-        if (pkgInfo.getVendor() != null) {
-          p.setVendor(pkgInfo.getVendor());
-        }
-        if (pkgInfo.getDescription() != null) {
-          p.setDescription(pkgInfo.getDescription());
-        }
+        p = composeProduct(pkgInfo);
 
         /** TODO: Currently Product properties only added at the first upload */
-        if (pkgInfo.getPropertyList() != null) {
-          for (PropertyItem item : pkgInfo.getPropertyList()) {
-            ProductProperty property = new ProductProperty();
-            property.setProductName(p.getName());
-            property.setPropKey(item.getKey());
-            property.setValueType(item.getValueType());
-            property.setPropValue(item.getValue());
-
-            propertyList.add(property);
-          }
-        }
+        propertyList = composeProperties(pkgInfo);
       } else {
         p.setDescription(pkgInfo.getDescription());
-        List<ProductInstance> temp = piSrv.findByNameAndVersion(p.getName(), pkgInfo.getVersion());
-        if (!temp.isEmpty()) {
-          // TODO: delete all temp files and dirs
-          return new ResponseEntity<String>(
-              "Product: "
-                  + pkgInfo.getProductName()
-                  + " already has uploaded this version: "
-                  + pkgInfo.getVersion(),
-              HttpStatus.CONFLICT);
-        }
       }
 
       /** Create configuration identifier list from package.info */
-      List<CfgIdentifier> cfgIdList = new ArrayList<CfgIdentifier>();
-      if (pkgInfo.getCfgIdList() != null) {
-        for (CfgIdInfo info : pkgInfo.getCfgIdList()) {
-          if (info.getPathName() == null || info.getTargetType() == null) {
-            continue;
-          }
-
-          String pathName = info.getPathName();
-          pathName.trim().replaceAll("\\\\", "/");
-          if (pathName.startsWith("./")) {
-            pathName = pathName.substring(1);
-          } else {
-            if (!pathName.startsWith("/")) {
-              pathName = "/" + pathName;
-            }
-          }
-
-          CfgIdentifier cfgId =
-              cfgIdSrv.findByUserNameAndPathNameAndTargetType(
-                  p.getName(), pathName, info.getTargetType());
-          if (cfgId == null) {
-            cfgId = new CfgIdentifier();
-            cfgId.setPathName(pathName);
-            cfgId.setUserName(p.getName());
-            cfgId.setTargetType(info.getTargetType());
-            cfgId.setCfgUuid(UUID.randomUUID().toString());
-
-            CfgContent content = null;
-            if (info.getDefaultContent() != null && !info.getDefaultContent().equals("")) {
-              String hash = HashUtils.getMd5Hash(info.getDefaultContent().getBytes());
-              content = cfgCntSrv.findByHash(hash);
-              if (content == null) {
-                content = new CfgContent();
-                content.setContentType(0);
-                content.setContent(info.getDefaultContent());
-                content.setContentHash(hash);
-                cfgCntSrv.save(content);
-              }
-            }
-            if (content != null) {
-              cfgId.setDefaultContentId(content.getId());
-            }
-            cfgIdList.add(cfgId);
-          }
-        }
-      }
+      List<CfgIdentifier> cfgIdList = composeCfgs(pkgInfo);
 
       /** Create product instances */
-      List<ProductInstance> instances = new ArrayList<ProductInstance>();
-
-      List<String> distList = new ArrayList<String>();
-      File temp[] = tempDestDir.listFiles();
-      for (int i = 0; i < temp.length; i++) {
-        if (temp[i].isDirectory()) {
-          distList.add(temp[i].getName());
+      List<ProductInstance> instances = null;
+      try {
+        if (p.getCategory()==ProductCategory.runtimeengine.toValue() ||
+                p.getCategory()==ProductCategory.managedapp.toValue()) {
+          instances = composeProductInstanceInZip(unzipPath, p, pkgInfo, upload_time);
+        }else{
+          instances = composeProductInstance(unzipPath, p, pkgInfo, upload_time);
         }
-      }
-
-      for (String dist : distList) {
-        ProductInstance instance = new ProductInstance();
-        instance.setInstanceName(dist);
-        instance.setProductName(p.getName());
-        instance.setVersion(pkgInfo.getVersion());
-
-        // fw_app_wasm does not have platform.info as WASM is platform
-        // independent
-        if (p.getCategory() != 5) {
-          String platStr =
-              FileUtils.readFileToString(
-                  new File(tempDest + "/" + dist + "/ams/version/platform.info"));
-          PlatformInfo platInfo = parsePlatform(platStr);
-          if (platInfo == null) {
-            // TODO: delete all temp files and dirs
-            return new ResponseEntity<String>(
-                "platform.info is not correct, Product: "
-                    + pkgInfo.getProductName()
-                    + " category: "
-                    + pkgInfo.getCategory()
-                    + " version: "
-                    + pkgInfo.getVersion()
-                    + " distribution: "
-                    + dist,
-                HttpStatus.BAD_REQUEST);
-          }
-          instance.setCpu(platInfo.getCpu());
-          instance.setOs(platInfo.getOs());
-          if (platInfo.getOsMin() != null) {
-            instance.setOsMin(platInfo.getOsMin());
-          }
-          if (platInfo.getSystem() != null) {
-            instance.setSystem(platInfo.getSystem());
-          }
-          if (platInfo.getSysMin() != null) {
-            instance.setSysMin(platInfo.getSysMin());
-          }
-          instance.setBits(platInfo.getBits());
-        }
-
-        String metaStr =
-            FileUtils.readFileToString(new File(tempDest + "/" + dist + "/ams/version/manifest"));
-        ManifestInfo manifest = parseManifest(metaStr);
-        if (manifest == null) {
-          // TODO: delete all temp files and dirs
-          return new ResponseEntity<String>(
-              "Manifest is not correct, Product: "
-                  + pkgInfo.getProductName()
-                  + " category: "
-                  + pkgInfo.getCategory()
-                  + " version: "
-                  + pkgInfo.getVersion()
-                  + " cpu: "
-                  + instance.getCpu()
-                  + " os: "
-                  + instance.getOs(),
-              HttpStatus.BAD_REQUEST);
-        }
-        if (manifest.getDependencyList() != null) {
-          instance.setDependencyList(serializeDependencies(manifest.getDependencyList()));
-        }
-        instance.setUploadTime(upload_time);
-        instance.setDescription(manifest.getDescription());
-        instance.setMetadata(metaStr);
-        if (p.getCategory() == 2 || p.getCategory() == 5) {
-          instance.setAotEnable(manifest.getAotEnable());
-        }
-        if (p.getCategory() == 2) {
-          instance.setWasmEnable(manifest.getWasmEnable());
-          instance.setWasmVersion(manifest.getWasmVersion());
-        }
-        if (p.getCategory() == 5) {
-          instance.setMinWasmVersion(manifest.getMinWasmVersion());
-        }
-
-        instances.add(instance);
+      } catch (Exception e) {
+        return new ResponseEntity<String>(e.getMessage(), HttpStatus.BAD_REQUEST);
       }
 
       /** Copy product from temp dir to repository */
@@ -1093,7 +935,8 @@ public class ProductMgrAPIs {
       }
 
       String destDirStr = AmsConst.repoPath + p.getName() + "/" + pkgInfo.getVersion();
-      FileUtils.moveDirectory(tempDestDir, new File(destDirStr));
+      System.out.println(String.format("move files from %s to %s", unzipPath, destDirStr));
+      FileUtils.moveDirectory(new File(unzipPath), new File(destDirStr));
 
       /** Add/Update Product into DB */
       pSrv.saveOrUpdate(p);
@@ -1177,12 +1020,216 @@ public class ProductMgrAPIs {
       // TODO: if exception happened, should rollback the database and
       // remove temp files
       return new ResponseEntity<String>("ZIP FILE I/O ERROR", HttpStatus.INTERNAL_SERVER_ERROR);
-    } catch (ZipException e) {
-      log.error("meet an exception while handling zip file", e);
-      // TODO: if exception happened, should rollback the database and
-      // remove temp files
-      return new ResponseEntity<String>("ZIP FILE ERROR", HttpStatus.INTERNAL_SERVER_ERROR);
     }
     return new ResponseEntity<String>(HttpStatus.OK);
+  }
+
+  private List<ProductInstance> composeProductInstance(String unzipPath, Product p, InstallationPackageInfo pkgInfo, Date upload_time) throws Exception {
+    List<ProductInstance> instances = new ArrayList<ProductInstance>();
+
+    List<String> distList = new ArrayList<String>();
+    File temp[] = new File(unzipPath).listFiles();
+    for (int i = 0; i < temp.length; i++) {
+      if (temp[i].isDirectory()) {
+        distList.add(temp[i].getName());
+      }
+    }
+
+    for (String dist : distList) {
+      ProductInstance instance = new ProductInstance();
+      instance.setInstanceName(dist);
+      instance.setProductName(p.getName());
+      instance.setVersion(pkgInfo.getVersion());
+
+      // fw_app_wasm does not have platform.info as WASM is platform
+      // independent
+      if (p.getCategory() != ProductCategory.fw_app_wasm.toValue()) {
+        String platStr =
+                FileUtils.readFileToString(
+                        new File(unzipPath + "/" + dist + "/ams/version/platform.info"));
+        PlatformInfo platInfo = parsePlatform(platStr);
+        if (platInfo == null) {
+          throw new Exception(String.format("platform.info is not correct, "
+                  + "Product: %s category: %s version: %s distribution: %s",
+                  pkgInfo.getProductName(), pkgInfo.getCategory(), pkgInfo.getVersion(), dist));
+        }
+        instance.setCpu(platInfo.getCpu());
+        instance.setOs(platInfo.getOs());
+        if (platInfo.getOsMin() != null) {
+          instance.setOsMin(platInfo.getOsMin());
+        }
+        if (platInfo.getSystem() != null) {
+          instance.setSystem(platInfo.getSystem());
+        }
+        if (platInfo.getSysMin() != null) {
+          instance.setSysMin(platInfo.getSysMin());
+        }
+        instance.setBits(platInfo.getBits());
+      }
+
+      String metaStr =
+              FileUtils.readFileToString(new File(unzipPath + "/" + dist + "/ams/version/manifest"));
+      ManifestInfo manifest = parseManifest(metaStr);
+      if (manifest == null) {
+        throw new Exception(String.format("Manifest is not correct, "
+                + "Product: %s category: %s version: %s cpu: %s os: %s",
+                pkgInfo.getProductName(), pkgInfo.getCategory(), pkgInfo.getVersion(), instance.getCpu(), instance.getOs()));
+        // TODO: delete all temp files and dirs
+      }
+      if (manifest.getDependencyList() != null) {
+        instance.setDependencyList(serializeDependencies(manifest.getDependencyList()));
+      }
+      instance.setUploadTime(upload_time);
+      instance.setDescription(manifest.getDescription());
+      instance.setMetadata(metaStr);
+      if (p.getCategory() == ProductCategory.fw_product.toValue() || p.getCategory() == ProductCategory.fw_app_wasm.toValue()) {
+        instance.setAotEnable(manifest.getAotEnable());
+      }
+      if (p.getCategory() == ProductCategory.fw_product.toValue()) {
+        instance.setWasmEnable(manifest.getWasmEnable());
+        instance.setWasmVersion(manifest.getWasmVersion());
+      }
+      if (p.getCategory() == ProductCategory.fw_app_wasm.toValue()) {
+        instance.setMinWasmVersion(manifest.getMinWasmVersion());
+      }
+
+      instances.add(instance);
+    }
+
+    return instances;
+  }
+
+  private List<ProductInstance> composeProductInstanceInZip(String unzipPath, Product p, InstallationPackageInfo pkgInfo, Date upload_time) throws Exception {
+    List<ProductInstance> instances = new ArrayList<ProductInstance>();
+
+    List<String> distList = new ArrayList<String>();
+    File temp[] = new File(unzipPath).listFiles();
+    for (File f : temp) {
+      String fileName = f.getName();
+      if (fileName.endsWith(".zip")) { //TODO confirm with ams_client
+        distList.add(fileName.replace(".zip", ""));
+      }
+    }
+
+    for (String dist : distList) {
+      ProductInstance instance = new ProductInstance();
+      instance.setInstanceName(dist);
+      instance.setProductName(p.getName());
+      instance.setVersion(pkgInfo.getVersion());
+      instance.setUploadTime(upload_time);
+      instance.setMetadata("{}");
+
+      // ManagedApp has not platform.info
+      if (p.getCategory() != ProductCategory.managedapp.toValue()) {
+        String platStr = FileUtils.readFileToString(new File(unzipPath + "/" + dist + ".info"));
+        PlatformInfo platInfo = parsePlatform(platStr);
+        if (platInfo == null) {
+          throw new Exception(String.format("platform.info is not correct, "
+                          + "Product: %s category: %s version: %s distribution: %s",
+                  pkgInfo.getProductName(), pkgInfo.getCategory(), pkgInfo.getVersion(), dist));
+        }
+        instance.setCpu(platInfo.getCpu());
+        instance.setOs(platInfo.getOs());
+        if (platInfo.getOsMin() != null) {
+          instance.setOsMin(platInfo.getOsMin());
+        }
+        if (platInfo.getSystem() != null) {
+          instance.setSystem(platInfo.getSystem());
+        }
+        if (platInfo.getSysMin() != null) {
+          instance.setSysMin(platInfo.getSysMin());
+        }
+        instance.setBits(platInfo.getBits());
+      }else{
+        //TODO check with device service
+        instance.setCpu("any");
+        instance.setOs("any");
+        instance.setSystem("any");
+      }
+      instances.add(instance);
+    }
+
+    return instances;
+  }
+
+  private List<CfgIdentifier> composeCfgs(InstallationPackageInfo pkgInfo) {
+    List<CfgIdentifier> cfgIds = new ArrayList<CfgIdentifier>();
+    if (pkgInfo.getCfgIdList() != null) {
+      for (CfgIdInfo info : pkgInfo.getCfgIdList()) {
+        if (info.getPathName() == null || info.getTargetType() == null) {
+          continue;
+        }
+
+        String pathName = info.getPathName();
+        pathName.trim().replaceAll("\\\\", "/");
+        if (pathName.startsWith("./")) {
+          pathName = pathName.substring(1);
+        } else {
+          if (!pathName.startsWith("/")) {
+            pathName = "/" + pathName;
+          }
+        }
+
+        CfgIdentifier cfgId =
+                cfgIdSrv.findByUserNameAndPathNameAndTargetType(
+                        pkgInfo.getProductName(), pathName, info.getTargetType());
+        if (cfgId == null) {
+          cfgId = new CfgIdentifier();
+          cfgId.setPathName(pathName);
+          cfgId.setUserName(pkgInfo.getProductName());
+          cfgId.setTargetType(info.getTargetType());
+          cfgId.setCfgUuid(UUID.randomUUID().toString());
+
+          CfgContent content = null;
+          if (info.getDefaultContent() != null && !info.getDefaultContent().equals("")) {
+            String hash = HashUtils.getMd5Hash(info.getDefaultContent().getBytes());
+            content = cfgCntSrv.findByHash(hash);
+            if (content == null) {
+              content = new CfgContent();
+              content.setContentType(0);
+              content.setContent(info.getDefaultContent());
+              content.setContentHash(hash);
+              cfgCntSrv.save(content);
+            }
+          }
+          if (content != null) {
+            cfgId.setDefaultContentId(content.getId());
+          }
+          cfgIds.add(cfgId);
+        }
+      }
+    }
+    return cfgIds;
+  }
+
+  private List<ProductProperty> composeProperties(InstallationPackageInfo pkgInfo) {
+    ArrayList<ProductProperty> propertyList = new ArrayList<ProductProperty>();
+    if (pkgInfo.getPropertyList() != null) {
+      for (PropertyItem item : pkgInfo.getPropertyList()) {
+        ProductProperty property = new ProductProperty();
+        property.setProductName(pkgInfo.getProductName());
+        property.setPropKey(item.getKey());
+        property.setValueType(item.getValueType());
+        property.setPropValue(item.getValue());
+
+        propertyList.add(property);
+      }
+    }
+    return propertyList;
+  }
+
+  private Product composeProduct(InstallationPackageInfo pkgInfo) {
+    Product product = new Product();
+    product.setUuid(UUID.randomUUID().toString());
+    product.setName(pkgInfo.getProductName());
+    ProductCategory cate = Enums.getIfPresent(ProductCategory.class, pkgInfo.getCategory().toLowerCase()).or(ProductCategory.software_product);
+    product.setCategory(cate.toValue());
+    if (pkgInfo.getVendor() != null) {
+      product.setVendor(pkgInfo.getVendor());
+    }
+    if (pkgInfo.getDescription() != null) {
+      product.setDescription(pkgInfo.getDescription());
+    }
+    return product;
   }
 }

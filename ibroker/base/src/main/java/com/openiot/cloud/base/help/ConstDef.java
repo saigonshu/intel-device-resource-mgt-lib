@@ -609,14 +609,19 @@ public class ConstDef {
   public static final Object CFG_TT_DEV = "device";
   public static final String CFG_TT_GRP = "group";
   public static final String CFG_TT_PRJ = "project";
+  public static final String CFG_TT_PLC_MGR = "plc-manager";
   public static final String CFG_PTN_DEVCFG = "device.cfg";
   public static final String CFG_PTN_GRPCFG = "group.cfg";
   public static final String CFG_PTN_MDCFG = "modbus.cfg";
   public static final String CFG_PTN_PRJCFG = "project.cfg";
+  public static final String CFG_PTN_PLCMGRCFG = "plcmgr.cfg";
   // end download config relevant
 
   public static final String ROOT_FOLDER_ID = "root";
   public static final String DEV_TYPE_IAGENT = "intel.iagent";
+  public static final String DEV_TYPE_PLC_GW = "plc-gateway";
+  public static final String DEV_TYPE_VPLC = "VPLC";
+  public static final String DEV_TYPE_RPLC = "RPLC";
   public static final String STANDARD_IAGENT = "iagent";
 
   // event monitor relevant
