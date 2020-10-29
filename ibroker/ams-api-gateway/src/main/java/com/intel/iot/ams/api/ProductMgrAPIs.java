@@ -24,7 +24,6 @@ import java.io.IOException;
 import java.util.*;
 import javax.servlet.http.HttpServletRequest;
 import lombok.extern.slf4j.Slf4j;
-import net.lingala.zip4j.core.ZipFile;
 import net.lingala.zip4j.exception.ZipException;
 import org.apache.commons.io.FileUtils;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -133,44 +132,28 @@ public class ProductMgrAPIs {
 
     if (vendor != null) {
       if (categoryStr != null) {
-        Integer category = null;
-        if (categoryStr.toLowerCase().equals("software_product")) {
-          category = new Integer(1);
-        } else if (categoryStr.toLowerCase().equals("fw_product")) {
-          category = new Integer(2);
-        } else if (categoryStr.toLowerCase().equals("plugin_app")) {
-          category = new Integer(3);
-        } else if (categoryStr.toLowerCase().equals("imrt_app")) {
-          category = new Integer(4);
-        } else if (categoryStr.toLowerCase().equals("fw_app_wasm")) {
-          category = new Integer(5);
-        } else {
+        try {
+          Integer category = ProductCategory.valueOf(categoryStr.toLowerCase()).toValue();
+          pList = pSrv.findByVendorAndCategory(vendor, category);
+        } catch (IllegalArgumentException e) {
+          e.printStackTrace();
           return new ResponseEntity<String>(
-              "Query parameter \"category\" value is invalid!", HttpStatus.BAD_REQUEST);
+                  "Query parameter \"category\" value is invalid!", HttpStatus.BAD_REQUEST);
         }
-        pList = pSrv.findByVendorAndCategory(vendor, category);
       } else {
         pList = pSrv.findByVendor(vendor);
       }
     }
 
     if (categoryStr != null && vendor == null) {
-      Integer category = null;
-      if (categoryStr.toLowerCase().equals("software_product")) {
-        category = new Integer(1);
-      } else if (categoryStr.toLowerCase().equals("fw_product")) {
-        category = new Integer(2);
-      } else if (categoryStr.toLowerCase().equals("plugin_app")) {
-        category = new Integer(3);
-      } else if (categoryStr.toLowerCase().equals("imrt_app")) {
-        category = new Integer(4);
-      } else if (categoryStr.toLowerCase().equals("fw_app_wasm")) {
-        category = new Integer(5);
-      } else {
+      try {
+        Integer category = ProductCategory.valueOf(categoryStr.toLowerCase()).toValue();
+        pList = pSrv.findByVendorAndCategory(vendor, category);
+      } catch (IllegalArgumentException e) {
+        e.printStackTrace();
         return new ResponseEntity<String>(
-            "Query parameter \"category\" value is invalid!", HttpStatus.BAD_REQUEST);
+                "Query parameter \"category\" value is invalid!", HttpStatus.BAD_REQUEST);
       }
-      pList = pSrv.findByCategory(category);
     }
 
     if (uuid == null && name == null && categoryStr == null && vendor == null) {
@@ -222,18 +205,9 @@ public class ProductMgrAPIs {
         String temp_filename = String.valueOf(new Date().getTime());
         FileAndDirUtils.saveFile(file, AmsConst.tempPath, temp_filename+".zip");
         String tempDest = AmsConst.tempPath + temp_filename;
-        ZipFile zFile = new ZipFile(tempDest+".zip");
-        if (!zFile.isValidZipFile()) {
-          return new ResponseEntity<String>(String.format("invalid zip format file:%s", zFile.getFile()), HttpStatus.BAD_REQUEST);
+        if ( !FileAndDirUtils.unzipAll(tempDest+".zip", tempDest) ){
+          return new ResponseEntity<String>(String.format("invalid zip format file:%s", uploadName), HttpStatus.BAD_REQUEST);
         }
-        /** Create temp unzip dir */
-        File tempDestDir = new File(tempDest);
-        if (!tempDestDir.exists()) {
-          tempDestDir.mkdir();
-        }
-        /** Unzip the file */
-        zFile.extractAll(tempDest);
-
         return handleZipPkgUpload(tempDest, request);
       } catch (IOException e) {
         return new ResponseEntity<String>("/O ERROR", HttpStatus.INTERNAL_SERVER_ERROR);
@@ -918,8 +892,9 @@ public class ProductMgrAPIs {
       /** Create product instances */
       List<ProductInstance> instances = null;
       try {
-        if (p.getCategory()==ProductCategory.runtimeengine.toValue() ||
-                p.getCategory()==ProductCategory.managedapp.toValue()) {
+        if (p.getCategory()==ProductCategory.managed_app.toValue()) {
+          instances = composeProductInstanceIndependance(unzipPath, p, pkgInfo, upload_time);
+        }else if(p.getCategory()==ProductCategory.runtime_engine.toValue()){
           instances = composeProductInstanceInZip(unzipPath, p, pkgInfo, upload_time);
         }else{
           instances = composeProductInstance(unzipPath, p, pkgInfo, upload_time);
@@ -936,7 +911,9 @@ public class ProductMgrAPIs {
 
       String destDirStr = AmsConst.repoPath + p.getName() + "/" + pkgInfo.getVersion();
       System.out.println(String.format("move files from %s to %s", unzipPath, destDirStr));
-      FileUtils.moveDirectory(new File(unzipPath), new File(destDirStr));
+      File dstDir = new File(destDirStr);
+      if (dstDir.exists()) FileUtils.deleteDirectory(dstDir);
+      FileUtils.moveDirectory(new File(unzipPath), dstDir);
 
       /** Add/Update Product into DB */
       pSrv.saveOrUpdate(p);
@@ -1099,6 +1076,36 @@ public class ProductMgrAPIs {
     return instances;
   }
 
+  private List<ProductInstance> composeProductInstanceIndependance(String unzipPath, Product p, InstallationPackageInfo pkgInfo, Date upload_time) throws Exception {
+    List<ProductInstance> instances = new ArrayList<ProductInstance>();
+
+    String dist = "os-any";
+    List<String> distList = new ArrayList<String>();
+    File temp[] = new File(unzipPath).listFiles();
+    for (File f : temp) {
+      String fileName = f.getName();
+      if (fileName.endsWith(".zip") || fileName.endsWith("tar.gz")) {
+        dist = fileName.replace(".tar.gz", "");
+        break;
+      }else if (fileName.endsWith(".zip")){
+        dist = fileName.replace(".zip", "");
+        break;
+      }
+    }
+
+    ProductInstance instance = new ProductInstance();
+    instance.setInstanceName(dist);
+    instance.setProductName(p.getName());
+    instance.setVersion(pkgInfo.getVersion());
+    instance.setUploadTime(upload_time);
+    instance.setMetadata("{}");
+    instance.setCpu("any");
+    instance.setOs("any");
+    instance.setSystem("any");
+    instances.add(instance);
+    return instances;
+  }
+
   private List<ProductInstance> composeProductInstanceInZip(String unzipPath, Product p, InstallationPackageInfo pkgInfo, Date upload_time) throws Exception {
     List<ProductInstance> instances = new ArrayList<ProductInstance>();
 
@@ -1106,8 +1113,22 @@ public class ProductMgrAPIs {
     File temp[] = new File(unzipPath).listFiles();
     for (File f : temp) {
       String fileName = f.getName();
-      if (fileName.endsWith(".zip")) { //TODO confirm with ams_client
-        distList.add(fileName.replace(".zip", ""));
+      if (fileName.endsWith(".zip")) {
+        String dist = fileName.replace(".zip", "");
+        distList.add(dist);
+        if ( !FileAndDirUtils.unzipOne(f.getAbsolutePath(), "ams/version/platform.info", unzipPath + "/" + dist + ".info")){
+          throw new Exception(String.format("platform.info is not correct, "
+                          + "Product: %s category: %s version: %s distribution: %s",
+                  pkgInfo.getProductName(), pkgInfo.getCategory(), pkgInfo.getVersion(), dist));
+        }
+      }else if (fileName.endsWith(".tar.gz")) {
+        String dist = fileName.replace(".tar.gz", "");
+        distList.add(dist);
+        if ( !FileAndDirUtils.untarOne(f.getAbsolutePath(), "ams/version/platform.info", unzipPath + "/" + dist + ".info")){
+          throw new Exception(String.format("platform.info is not correct, "
+                          + "Product: %s category: %s version: %s distribution: %s",
+                  pkgInfo.getProductName(), pkgInfo.getCategory(), pkgInfo.getVersion(), dist));
+        }
       }
     }
 
@@ -1119,33 +1140,25 @@ public class ProductMgrAPIs {
       instance.setUploadTime(upload_time);
       instance.setMetadata("{}");
 
-      // ManagedApp has not platform.info
-      if (p.getCategory() != ProductCategory.managedapp.toValue()) {
-        String platStr = FileUtils.readFileToString(new File(unzipPath + "/" + dist + ".info"));
-        PlatformInfo platInfo = parsePlatform(platStr);
-        if (platInfo == null) {
-          throw new Exception(String.format("platform.info is not correct, "
-                          + "Product: %s category: %s version: %s distribution: %s",
-                  pkgInfo.getProductName(), pkgInfo.getCategory(), pkgInfo.getVersion(), dist));
-        }
-        instance.setCpu(platInfo.getCpu());
-        instance.setOs(platInfo.getOs());
-        if (platInfo.getOsMin() != null) {
-          instance.setOsMin(platInfo.getOsMin());
-        }
-        if (platInfo.getSystem() != null) {
-          instance.setSystem(platInfo.getSystem());
-        }
-        if (platInfo.getSysMin() != null) {
-          instance.setSysMin(platInfo.getSysMin());
-        }
-        instance.setBits(platInfo.getBits());
-      }else{
-        //TODO check with device service
-        instance.setCpu("any");
-        instance.setOs("any");
-        instance.setSystem("any");
+      String platStr = FileUtils.readFileToString(new File(unzipPath + "/" + dist + ".info"));
+      PlatformInfo platInfo = parsePlatform(platStr);
+      if (platInfo == null) {
+        throw new Exception(String.format("platform.info is not correct, "
+                        + "Product: %s category: %s version: %s distribution: %s",
+                pkgInfo.getProductName(), pkgInfo.getCategory(), pkgInfo.getVersion(), dist));
       }
+      instance.setCpu(platInfo.getCpu());
+      instance.setOs(platInfo.getOs());
+      if (platInfo.getOsMin() != null) {
+        instance.setOsMin(platInfo.getOsMin());
+      }
+      if (platInfo.getSystem() != null) {
+        instance.setSystem(platInfo.getSystem());
+      }
+      if (platInfo.getSysMin() != null) {
+        instance.setSysMin(platInfo.getSysMin());
+      }
+      instance.setBits(platInfo.getBits());
       instances.add(instance);
     }
 

@@ -151,7 +151,7 @@ public class ClientProductDeployAPIs {
         /** Add ams_client installed info */
         JsonObject jClient = new JsonObject();
         jClient.addProperty("product_name", "ams_client");
-        jClient.addProperty("category", 1);
+        jClient.addProperty("category", ProductCategory.software_product.toValue());
         jClient.addProperty("version", client.getAmsClientVersion());
         jInstalls.add(jClient);
 
@@ -190,7 +190,7 @@ public class ClientProductDeployAPIs {
         if (productName.equals("ams_client")) {
           JsonObject jClient = new JsonObject();
           jClient.addProperty("product_name", "ams_client");
-          jClient.addProperty("category", 1);
+          jClient.addProperty("category", ProductCategory.software_product.toValue());
           jClient.addProperty("version", client.getAmsClientVersion());
           jInstalls.add(jClient);
         }
@@ -203,7 +203,7 @@ public class ClientProductDeployAPIs {
         else if (client.getFwVersion() != "" | client.getFwVersion() != null) {
           JsonObject jClientFw = new JsonObject();
           jClientFw.addProperty("product_name", productName); // productName is like moto_watch
-          jClientFw.addProperty("category", 2); // fw_product
+          jClientFw.addProperty("category", ProductCategory.fw_product.toValue()); // fw_product
           jClientFw.addProperty("version", client.getFwVersion());
           jInstalls.add(jClientFw);
         } else {
@@ -987,15 +987,15 @@ public class ClientProductDeployAPIs {
     if (productName == null || version == null) {
       return null;
     }
-    if (category > 5 || category < 1) {
+    if (category > ProductCategory.managed_app.toValue() || category < ProductCategory.software_product.toValue()) {
       return null;
     }
-    if ((category != 4 || category != 5) && client == null) {
+    if ((category != ProductCategory.imrt_app.toValue() || category != ProductCategory.fw_app_wasm.toValue()) && client == null) {
       return null;
     }
 
     /** the product is fw_product */
-    if (category == 2) {
+    if (category == ProductCategory.fw_product.toValue()) {
       ProductInstance instance =
           pInstanceSrv.findByNameAndVersionAndCpuAndPlatformAndOs(
               productName, version, client.getCpu(), null, null);
@@ -1003,7 +1003,7 @@ public class ClientProductDeployAPIs {
     }
 
     /** the product is imrt app */
-    if (category == 4) {
+    if (category == ProductCategory.imrt_app.toValue()) {
       ProductInstance instance =
           pInstanceSrv.findByNameAndVersionAndCpuAndPlatformAndOs(
               productName, version, null, null, null);
@@ -1011,7 +1011,7 @@ public class ClientProductDeployAPIs {
     }
 
     /** the product is fw_app_wasm */
-    if (category == 5) {
+    if (category == ProductCategory.fw_app_wasm.toValue()) {
       ProductInstance instance =
           pInstanceSrv.findByNameAndVersionAndCpuAndPlatformAndOs(
               productName, version, null, null, null);

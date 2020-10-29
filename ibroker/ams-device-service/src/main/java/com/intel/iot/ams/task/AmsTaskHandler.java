@@ -43,11 +43,22 @@ import com.intel.iot.ams.service.ProductInstanceService;
 import com.intel.iot.ams.service.ProductService;
 import com.intel.iot.ams.service.ServiceBundle;
 import com.intel.iot.ams.utils.AmsConstant;
+import com.intel.iot.ams.utils.AmsConstant.ProductCategory;
 import com.intel.iot.ams.utils.HashUtils;
 import com.intel.iot.ams.utils.TarUtils;
 import com.intel.iot.ams.utils.Utils;
 
 public class AmsTaskHandler implements Runnable {
+  private class PackageInfo{
+    public String hashcode;
+    public String format;
+    public long size;
+    public PackageInfo(String hashcode, String format, long size){
+      this.hashcode = hashcode;
+      this.format = format;
+      this.size = size;
+    }
+  }
 
   private AmsTaskService taskSrv;
   private AmsClientService clientSrv;
@@ -121,6 +132,7 @@ public class AmsTaskHandler implements Runnable {
     try {
       prop = gson.fromJson(propStr, CalculateChangesProperty.class);
     } catch (JsonSyntaxException jse) {
+      logger.error(Utils.getStackTrace(jse));
       return false;
     }
     if (prop == null || prop.getClientUuid() == null) {
@@ -160,7 +172,7 @@ public class AmsTaskHandler implements Runnable {
         ProductInstance pInstalledInstance = null;
         if (pDeployInstance != null) {
           ProductInstalled install = null;
-          if (!deploy.getProductName().equals("ams_client") && p.getCategory() != 2) {
+          if (!deploy.getProductName().equals("ams_client") && p.getCategory() != ProductCategory.fw_product.toValue()) {
             install = installSrv.findByClientUuidAndProductName(client.getClientUuid(),
                                                                 deploy.getProductName());
             if (install != null) {
@@ -177,7 +189,8 @@ public class AmsTaskHandler implements Runnable {
            * If the deploy has already installed, delete the changes, then continue
            */
           if (fromId != null && fromId.intValue() == toId.intValue()) {
-            if (p.getCategory() != 5 || deploy.getIsAot().equals(install.getIsAot())) {
+            if (p.getCategory() != ProductCategory.fw_app_wasm.toValue()
+                    || deploy.getIsAot().equals(install.getIsAot())) {
               changeSrv.removeByClientUuidAndProductName(client.getClientUuid(), p.getName());
               continue;
             }
@@ -191,7 +204,7 @@ public class AmsTaskHandler implements Runnable {
           }
 
           /** FW product */
-          if (p.getCategory() == 2) {
+          if (p.getCategory() == ProductCategory.fw_product.toValue()) {
             if (pDeployInstance.getVersion().equals(client.getFwVersion())) {
               changeSrv.removeByClientUuidAndProductName(client.getClientUuid(), p.getName());
               continue;
@@ -200,12 +213,16 @@ public class AmsTaskHandler implements Runnable {
 
           /** Find if the download package has already been created */
           ProductDownloadPackage pack = null;
-          if (p.getCategory() == 2 || p.getCategory() == 4) {
+          if (p.getCategory() == ProductCategory.fw_product.toValue() ||
+                  p.getCategory() == ProductCategory.imrt_app.toValue() ||
+                  p.getCategory() == ProductCategory.managed_app.toValue() ||
+                  p.getCategory() == ProductCategory.runtime_engine.toValue()
+          ) {
             /**
              * FW product and iMRT app package (BPK file) does not support incremental mode
              */
             pack = pkgSrv.findByProductNameAndFromIdAndToId(productName, null, toId);
-          } else if (p.getCategory() == 5) {
+          } else if (p.getCategory() == ProductCategory.fw_app_wasm.toValue()) {
             pack = pkgSrv.findByProductNameAndFromIdAndToIdAndIsAot(productName,
                                                                     null,
                                                                     toId,
@@ -345,73 +362,27 @@ public class AmsTaskHandler implements Runnable {
       return null;
     }
 
-    String pkgHash = null;
-    long pkgSize = 0;
-    String pkgFormat = null;
-    String toDir = null;
     ProductInstance to = instanceSrv.findById(toId);
     if (to == null) {
       return null;
     }
 
-    if (p.getCategory() == 2) {
-      pkgHash = createFwPkg(p, to);
-      if (pkgHash == null) {
-        return null;
-      }
-      pkgSize = new File(AmsConstant.downloadPath + pkgHash + ".fw").length();
-      pkgFormat = "fw";
-    } else if (p.getCategory() == 4) {
-      toDir = AmsConstant.repoPath + p.getName() + "/" + to.getVersion() + ".bpk";
-      pkgHash = createFullBpk(toDir);
-      if (pkgHash == null) {
-        return null;
-      }
-      pkgSize = new File(AmsConstant.downloadPath + pkgHash + ".bpk").length();
-      pkgFormat = "bpk";
-    } else if (p.getCategory() == 5) {
-      String postfix = null;
-      if (isAot) {
-        postfix = ".aot";
-        pkgFormat = "aot";
-      } else {
-        postfix = ".wasm";
-        pkgFormat = "wasm";
-      }
-      pkgHash = createFwAppPkg(p, to, isAot);
-      if (pkgHash == null) {
-        return null;
-      }
-      pkgSize = new File(AmsConstant.downloadPath + pkgHash + postfix).length();
+    PackageInfo packInfo = null;
+    if (p.getCategory() == ProductCategory.fw_product.toValue()) {
+      packInfo = createFwPkg(p, to);
+    } else if (p.getCategory() == ProductCategory.imrt_app.toValue()) {
+      packInfo = createFullBpk(p, to);
+    } else if (p.getCategory() == ProductCategory.fw_app_wasm.toValue()) {
+      packInfo = createFwAppPkg(p, to, isAot);
+    } else if (p.getCategory() == ProductCategory.runtime_engine.toValue() ||
+            p.getCategory() == ProductCategory.managed_app.toValue()) {
+      packInfo = createPkgFromExistingTar(p, to);
     } else {
-      toDir = AmsConstant.repoPath + p.getName() + "/" + to.getVersion() + "/"
-          + to.getInstanceName() + "/";
-      ProductInstance from = null;
-      if (fromId != null) {
-        from = instanceSrv.findById(fromId);
-      }
+      packInfo = createDeltaTarPkg(p, fromId, to);
+    }
 
-      if (from == null) {
-        pkgHash = createFullTarGzPkg(toDir, productName);
-      } else {
-        String fromDir = null;
-        if (p.getCategory() == 4) {
-          fromDir = AmsConstant.repoPath + p.getName() + "/" + from.getVersion();
-        } else {
-          fromDir = AmsConstant.repoPath + p.getName() + "/" + from.getVersion() + "/"
-              + from.getInstanceName() + "/";
-        }
-        pkgHash = createIncrementalTarGzPkg(fromDir, toDir, productName);
-      }
-      if (pkgHash == null) {
-        return null;
-      }
-      /*
-       * pkgSize = new File(AmsConstant.downloadPath + pkgHash + ".zip").length(); pkgFormat =
-       * "zip";
-       */
-      pkgSize = new File(AmsConstant.downloadPath + pkgHash + ".tar.gz").length();
-      pkgFormat = "tar.gz";
+    if (packInfo == null) {
+      return null;
     }
 
     ProductDownloadPackage download = new ProductDownloadPackage();
@@ -422,11 +393,11 @@ public class AmsTaskHandler implements Runnable {
     }
     download.setToId(toId);
     download.setGenDate(new Date());
-    download.setHashcode(pkgHash);
-    download.setSize(new Long(pkgSize));
-    download.setFormat(pkgFormat);
+    download.setHashcode(packInfo.hashcode);
+    download.setSize(packInfo.size);
+    download.setFormat(packInfo.format);
     download.setLastUsedTime(new Date());
-    if (p.getCategory() == 5) {
+    if (p.getCategory() == ProductCategory.fw_app_wasm.toValue()) {
       download.setIsAot(isAot);
     }
 
@@ -435,11 +406,72 @@ public class AmsTaskHandler implements Runnable {
     return download;
   }
 
-  private String createFullBpk(String toDirStr) {
-    if (toDirStr == null) {
+  private PackageInfo createPkgFromExistingTar(Product p, ProductInstance to) {
+    String pkgHash = null;
+    String format = "tar.gz";
+    String tarFilePath = String.format("%s%s/%s/%s.%s",
+            AmsConstant.repoPath, p.getName() ,
+            to.getVersion(), to.getInstanceName(),
+            format);
+
+    //get hash code
+    File tarFile = new File(tarFilePath);
+    if(!tarFile.exists()) return null;
+    try {
+      pkgHash = HashUtils.getMd5Hash(FileUtils.readFileToByteArray(tarFile));
+    } catch (IOException e) {
+      logger.error(Utils.getStackTrace(e));
       return null;
     }
 
+    // move source tar file to hash.tar.gz
+    String destDirStr = AmsConstant.downloadPath + pkgHash + "."+format;
+    File destTarGz = new File(destDirStr);
+    if (!destTarGz.exists()) {
+      try {
+        FileUtils.moveFile(tarFile, destTarGz);
+      } catch (IOException e) {
+        logger.error(Utils.getStackTrace(e));
+        return null;
+      }
+    }
+    return new PackageInfo(pkgHash, format, tarFile.length());
+  }
+
+  private PackageInfo createDeltaTarPkg(Product p, Integer fromId, ProductInstance to) {
+    String toDir = AmsConstant.repoPath + p.getName() + "/" + to.getVersion() + "/"
+            + to.getInstanceName() + "/";
+    String pkgHash = null;
+    ProductInstance from = null;
+    if (fromId != null) {
+      from = instanceSrv.findById(fromId);
+    }
+
+    if (from == null) {
+      pkgHash = createFullTarGzPkg(toDir, p.getName());
+    } else {
+      String fromDir = null;
+      if (p.getCategory() == 4) {
+        fromDir = AmsConstant.repoPath + p.getName() + "/" + from.getVersion();
+      } else {
+        fromDir = AmsConstant.repoPath + p.getName() + "/" + from.getVersion() + "/"
+                + from.getInstanceName() + "/";
+      }
+      pkgHash = createIncrementalTarGzPkg(fromDir, toDir, p.getName());
+    }
+    if (pkgHash == null) {
+      return null;
+    }
+    /*
+     * pkgSize = new File(AmsConstant.downloadPath + pkgHash + ".zip").length(); pkgFormat =
+     * "zip";
+     */
+    long pkgSize = new File(AmsConstant.downloadPath + pkgHash + ".tar.gz").length();
+    return new PackageInfo(pkgHash, "tar.gz", pkgSize);
+  }
+
+  private PackageInfo createFullBpk(Product p, ProductInstance to) {
+    String toDirStr = AmsConstant.repoPath + p.getName() + "/" + to.getVersion() + ".bpk";
     String pkgHash = null;
     String tempBpkPath = AmsConstant.tempPath + String.valueOf(new Date().getTime()) + ".bpk";
     File tempBpk = new File(tempBpkPath);
@@ -455,11 +487,12 @@ public class AmsTaskHandler implements Runnable {
         FileUtils.moveFile(tempBpk, bpk);
       }
     } catch (IOException e) {
-      e.printStackTrace();
+      logger.error(Utils.getStackTrace(e));
       return null;
     }
+    long pkgSize = new File(AmsConstant.downloadPath + pkgHash + ".bpk").length();
 
-    return pkgHash;
+    return new PackageInfo(pkgHash, "bpk", pkgSize);
   }
 
   private String createFullTarGzPkg(String toDirStr, String productName) {
@@ -517,9 +550,10 @@ public class AmsTaskHandler implements Runnable {
         FileUtils.moveFile(tarGzFile, destTarGz);
       }
     } catch (IOException e) {
-      e.printStackTrace();
+      logger.error(Utils.getStackTrace(e));
       return null;
     } catch (JsonSyntaxException jse) {
+      logger.error(Utils.getStackTrace(jse));
       return null;
     }
 
@@ -610,9 +644,10 @@ public class AmsTaskHandler implements Runnable {
         FileUtils.moveFile(tarGzFile, destTarGz);
       }
     } catch (IOException e) {
-      e.printStackTrace();
+      logger.error(Utils.getStackTrace(e));
       return null;
     } catch (JsonSyntaxException jse) {
+      logger.error(Utils.getStackTrace(jse));
       return null;
     }
 
@@ -628,15 +663,15 @@ public class AmsTaskHandler implements Runnable {
       return null;
     }
 
-    if (category > 5 || category < 1) {
+    if (category > ProductCategory.managed_app.toValue() || category < ProductCategory.software_product.toValue()) {
       return null;
     }
-    if ((category != 4 || category != 5) && client == null) {
+    if ((category != ProductCategory.imrt_app.toValue() || category != ProductCategory.fw_app_wasm.toValue()) && client == null) {
       return null;
     }
 
     /** the product is fw_product */
-    if (category == 2) {
+    if (category == ProductCategory.fw_product.toValue()) {
       ProductInstance instance =
           instanceSrv.findByNameAndVersionAndCpuAndPlatformAndOs(productName,
                                                                  version,
@@ -646,7 +681,7 @@ public class AmsTaskHandler implements Runnable {
       return instance;
     }
 
-    if (category == 4) {
+    if (category == ProductCategory.imrt_app.toValue()) {
       ProductInstance instance = instanceSrv.findByNameAndVersionAndCpuAndPlatformAndOs(productName,
                                                                                         version,
                                                                                         null,
@@ -656,7 +691,7 @@ public class AmsTaskHandler implements Runnable {
     }
 
     /** the product is fw_app_wasm */
-    if (category == 5) {
+    if (category == ProductCategory.fw_app_wasm.toValue()) {
       ProductInstance instance = instanceSrv.findByNameAndVersionAndCpuAndPlatformAndOs(productName,
                                                                                         version,
                                                                                         null,
@@ -946,6 +981,7 @@ public class AmsTaskHandler implements Runnable {
     try {
       list = gson.fromJson(content, new TypeToken<List<TemplateItem>>() {}.getType());
     } catch (JsonSyntaxException jse) {
+      logger.error(Utils.getStackTrace(jse));
       return null;
     }
 
@@ -984,15 +1020,15 @@ public class AmsTaskHandler implements Runnable {
       String value = properties.getProperty("ams.download_per_minute");
       limit = Integer.valueOf(value);
     } catch (IOException e) {
-      e.printStackTrace();
+      logger.error(Utils.getStackTrace(e));
     } catch (Exception e) {
-      e.printStackTrace();
+      logger.error(Utils.getStackTrace(e));
     }
 
     return limit;
   }
 
-  private String createFwPkg(Product p, ProductInstance to) {
+  private PackageInfo createFwPkg(Product p, ProductInstance to) {
 
     String toDir = AmsConstant.repoPath + p.getName() + "/" + to.getVersion() + "/"
         + to.getInstanceName() + "/bin/" + p.getName() + ".fw";
@@ -1012,22 +1048,15 @@ public class AmsTaskHandler implements Runnable {
         FileUtils.moveFile(tempFw, fw);
       }
     } catch (IOException e) {
-      e.printStackTrace();
+      logger.error(Utils.getStackTrace(e));
       return null;
     }
-
-    return pkgHash;
+    long pkgSize = new File(AmsConstant.downloadPath + pkgHash + ".fw").length();
+    return new PackageInfo(pkgHash, "fw", pkgSize);
   }
 
-  private String createFwAppPkg(Product p, ProductInstance to, boolean isAot) {
-
-    String postfix = null;
-
-    if (isAot) {
-      postfix = ".aot";
-    } else {
-      postfix = ".wasm";
-    }
+  private PackageInfo createFwAppPkg(Product p, ProductInstance to, boolean isAot) {
+    String postfix = isAot?".aot":".wasm";
     String toDir = AmsConstant.repoPath + p.getName() + "/" + to.getVersion() + "/fw_app_wasm/bin/"
         + p.getName() + ".wasm";
 
@@ -1047,11 +1076,12 @@ public class AmsTaskHandler implements Runnable {
         FileUtils.moveFile(tempFwApp, fwApp);
       }
     } catch (IOException e) {
-      e.printStackTrace();
+      logger.error(Utils.getStackTrace(e));
       return null;
     }
 
-    return pkgHash;
+    long pkgSize = new File(AmsConstant.downloadPath + pkgHash + postfix).length();
+    return new PackageInfo(pkgHash, isAot?"aot":"wasm", pkgSize);
   }
 
 

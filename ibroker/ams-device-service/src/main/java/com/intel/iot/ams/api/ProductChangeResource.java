@@ -5,6 +5,7 @@
 
 package com.intel.iot.ams.api;
 
+import com.intel.iot.ams.utils.AmsConstant.ProductCategory;
 import org.apache.log4j.Logger;
 import org.eclipse.californium.core.CoapResource;
 import org.eclipse.californium.core.coap.Response;
@@ -95,7 +96,7 @@ public class ProductChangeResource extends CoapResource {
                   jInstall.addProperty("product_name", change.getProductName());
                   jInstall.addProperty("fmt", pkg.getFormat());
                   jInstall.addProperty("download_id", downId);
-                  jInstall.addProperty("category", pkg.getCategory());
+                  jInstall.addProperty("category", ProductCategory.fromValue(pkg.getCategory()).toString());
                   jInstall.addProperty("version", toInstance.getVersion());
                   jInstall.addProperty("hash", pkg.getHashcode());
                   jInstallArr.add(jInstall);

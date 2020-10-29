@@ -9,19 +9,34 @@ import com.google.gson.Gson;
 import com.google.gson.JsonSyntaxException;
 import com.intel.iot.ams.entity.*;
 import com.intel.iot.ams.requestbody.CalculateChangesProperty;
+import com.intel.iot.ams.server.AmsCoapTcpServer;
+import com.intel.iot.ams.server.AmsCoapUdpServer;
 import com.intel.iot.ams.service.*;
+import com.intel.iot.ams.task.AmsTaskHandler;
 import org.eclipse.californium.core.Utils;
 import org.eclipse.californium.core.CoapClient;
 import org.eclipse.californium.core.CoapResponse;
 import org.json.JSONArray;
 import org.json.JSONObject;
+import org.junit.*;
+import org.junit.runner.RunWith;
+import org.springframework.test.context.ContextConfiguration;
+import org.springframework.test.context.junit4.SpringJUnit4ClassRunner;
 
 import java.net.URI;
 import java.util.Date;
 
 import java.util.List;
 
+import static org.assertj.core.api.Assertions.assertThat;
+
+@RunWith(SpringJUnit4ClassRunner.class)
+@ContextConfiguration(classes={CoapTestDemo.class})
 public class CoapTestDemo {
+
+    private static AmsCoapTcpServer tcpServer;
+    private static AmsCoapUdpServer udpServer;
+    private static Thread task;
 
     //
     private AmsTaskService TaskSrv;
@@ -63,35 +78,33 @@ public class CoapTestDemo {
 
     private String test_AllCfgInfo_uri="/ams/v1/c/a";
 
-    public static void main(String[] args) throws Exception{
-      CoapTestDemo CoapT=new CoapTestDemo();
-      CoapT.init();         //should always run in every time
-      CoapT.test_prov();    //should always run in every time
-      CoapT.test_SetTmplt();
+    @Test
+    @Ignore
+    public void testMain() throws Exception{
+      test_prov();    //should always run in every time
+      test_SetTmplt();
       //should test before product_map & PostProdInst, removeProductChange in these 2 cases.
       //Besides, AmsTask thread will constantly query task and may removeProductChanges too.
-      CoapT.test_QryProdChg();
+      test_QryProdChg();
 
-      CoapT.test_QryDownCfgCt();
+      test_QryDownCfgCt();
 
-      CoapT.test_prod_map();
-      CoapT.test_GetTmplt();
-      CoapT.test_PostProdInst();
-      CoapT.test_QryDownCfgCt();
+      test_prod_map();
+      test_GetTmplt();
+      test_PostProdInst();
+      test_QryDownCfgCt();
 
-      //CoapT.test_DownInstPkg();
+      //test_DownInstPkg();
 
-      CoapT.test_PostAllCfgInfo();
-      CoapT.test_QryAllCfgInfo();
+      test_PostAllCfgInfo();
+      test_QryAllCfgInfo();
 
-      CoapT.test_QryCfgInfo();
+      test_QryCfgInfo();
     }
 
+    @Before
     public void init(){
-        System.out.println("---------------------------------------------------------------------------");
-        System.out.println("Enter the Init function\n ");
-        System.out.println("------------  Init() start -----------------\n");
-
+        System.out.println("------------  test case setup start -----------------");
         //get Instance for necessary service
         AmsCltSrv =ServiceBundle.getInstance().getClientSrv();
         CltDvcMapSrv= ServiceBundle.getInstance().getMapSrv();
@@ -104,8 +117,17 @@ public class CoapTestDemo {
         ProdDwnldPkgSrv=ServiceBundle.getInstance().getProductPkgSrv();
         CfgIdentSrv=ServiceBundle.getInstance().getCfgIdSrv();
 
-        System.out.println("Clear DB\n ");
+        cleanDB();
 
+        System.out.println("------------  test case setup finish -----------------");
+    }
+
+    @After
+    public void tearDown(){
+        cleanDB();
+    }
+
+    private void cleanDB() {
         //delete AmsTask of which Property equals testuuid01
         List<AmsTask> tklist=TaskSrv.findAll();
         if(tklist!=null){
@@ -167,16 +189,29 @@ public class CoapTestDemo {
                 ProdDeplSrv.removeById(dpl.getId());
             }
         }
+    }
 
-        System.out.println("\n------------  Init() finish -----------------");
-        System.out.println("--------------------------------------------------------------------------\n\n\n");
+    @AfterClass
+    public static void cleanTest(){
+        tcpServer.stop();
+        System.out.println("------------  test suite stop -----------------");
+    }
 
+    @BeforeClass
+    public static void startServer() {
+        System.out.println("------------  test suite start -----------------");
+        tcpServer = new AmsCoapTcpServer(true);
+        tcpServer.start();
+        udpServer = new AmsCoapUdpServer(true);
+        udpServer.start();
+
+        Runnable taskHandler = new AmsTaskHandler();
+        task = new Thread(taskHandler);
+        task.start();
     }
 
     /* client provision */
     public void test_prov() throws Exception{
-        System.out.println("\n\n\n---------------------------------------------------------------------------");
-        System.out.println("Enter the test_prov function\n");
 
         URI uri =new URI(base_uri+prov_uri);
         CoapClient client =new CoapClient(uri);
@@ -198,6 +233,7 @@ public class CoapTestDemo {
         JnObj.put("aot_enable",true);
         String payload=JnObj.toString();
 
+        System.out.println(String.format("post to %s: \n %s", uri.toASCIIString(), payload));
         CoapResponse response=client.post(payload,50);/* format id : 50 means Media type is Application/json */
 
         /* DB preparation :
@@ -214,24 +250,13 @@ public class CoapTestDemo {
          * Add finished.
          * */
 
-        if(response!=null){
-            System.out.println("\n Response");
-            System.out.println(Utils.prettyPrint(response));
-            if(response.getCode().toString().startsWith("2")){
-                System.out.println("\n Provision Success !");
-            }else{
-                System.out.println("\n Provision Fail ! ");
-            }
-            System.out.println("---------------------------------------------------------------------------\n\n\n");
-        }else{
-            System.out.println("\n Response is null ! ");
-            System.out.println("---------------------------------------------------------------------------\n\n\n");
-        }
+        assertThat(response).isNotNull();
+        assertThat(response.getCode()).isNotNull();
+        assertThat(response.getCode().toString()).startsWith("2");
     }
 
     /* client device map */
     public void test_prod_map() throws Exception{
-        System.out.println("\n\n\n---------------------------------------------------------------------------");
         System.out.println("Enter the test_prod_map function\n ");
 
         /*
@@ -358,20 +383,9 @@ public class CoapTestDemo {
         String payload=JnObj.toString();
         CoapResponse response=client.post(payload,50);/* format id : 50 means Media type is Application/json */
 
-        if(response!=null){
-            System.out.println("\nResponse");
-            System.out.println(Utils.prettyPrint(response));
-            if(response.getCode().toString().startsWith("2")){
-                System.out.println("\n Prov_map test success ! ");
-            }else{
-                System.out.println("\n Prov_map test Fail ! ");
-            }
-            System.out.println("---------------------------------------------------------------------------\n\n\n");
-
-        }else{
-            System.out.println("\n Response null ! ");
-            System.out.println("---------------------------------------------------------------------------\n\n\n");
-        }
+        assertThat(response).isNotNull();
+        assertThat(response.getCode()).isNotNull();
+        assertThat(response.getCode().toString()).startsWith("2");
     }
 
     /* ams/v1/t POST Set template for client
@@ -381,7 +395,6 @@ public class CoapTestDemo {
     *
     * */
     public void test_SetTmplt() throws Exception{
-        System.out.println("\n\n\n---------------------------------------------------------------------------");
         System.out.println("Enter the test_SetTmplt function \n");
 
         //Query 1 random template
@@ -403,19 +416,13 @@ public class CoapTestDemo {
         String payload="";
         CoapResponse response=client.post(payload,50);
 
-        if(response!=null){
-            System.out.println("\n Response");
-            System.out.println(Utils.prettyPrint(response));
-            if(response.getCode().toString().startsWith("2")){
-                System.out.println("\n Set Template success ! ");
-            }else{
-                System.out.println("\n Set Template Fail ! ");
-            }
-            System.out.println("---------------------------------------------------------------------------\n\n\n");
-        }else{
-            System.out.println("\n Response is null ! ");
-            System.out.println("---------------------------------------------------------------------------\n\n\n");
-        }
+        assertThat(response).isNotNull();
+        assertThat(response.getCode()).isNotNull();
+        assertThat(response.getCode().toString()).startsWith("2");
+
+        clt=AmsCltSrv.findByClientUUID("testuuid001");
+        assertThat(clt).isNotNull()
+                .hasFieldOrPropertyWithValue("templateName", tmplt_name);
     }
 
     /*ams/v1/t GET  Get template info from Server
@@ -424,7 +431,6 @@ public class CoapTestDemo {
     *
     * */
     public void test_GetTmplt() throws Exception{
-        System.out.println("\n\n\n---------------------------------------------------------------------------");
         System.out.println(" Enter the test_GetTmplt function \n");
 
         //Query the id of the client by clientUuid
@@ -435,24 +441,13 @@ public class CoapTestDemo {
         CoapClient client=new CoapClient(uri);
         CoapResponse response=client.get();
 
-        if(response!=null){
-            System.out.println("\n Response");
-            System.out.println(Utils.prettyPrint(response));
-            if(response.getCode().toString().startsWith("2")){
-                System.out.println("\n Get Template success ! ");
-            }else{
-                System.out.println("\n Get Template Fail ! ");
-            }
-            System.out.println("---------------------------------------------------------------------------\n\n\n");
-        }else{
-            System.out.println("\n Response is null ! ");
-            System.out.println("---------------------------------------------------------------------------\n\n\n");
-        }
+        assertThat(response).isNotNull();
+        assertThat(response.getCode()).isNotNull();
+        assertThat(response.getCode().toString()).startsWith("2");
     }
 
     /* ams/v1/p/installed POST */
     public void test_PostProdInst() throws Exception{
-        System.out.println("\n\n\n---------------------------------------------------------------------------");
         System.out.println("Enter the test_PostProdInst function \n");
 
         URI uri=new URI(base_uri+test_PostInst_uri);
@@ -488,24 +483,13 @@ public class CoapTestDemo {
         System.out.println(payload);
         CoapResponse response=client.post(payload,50);
 
-        if(response!=null){
-            System.out.println("\n Response");
-            System.out.println(Utils.prettyPrint(response));
-            if(response.getCode().toString().startsWith("2")){
-                System.out.println("\n Post Product Installation success ! ");
-            }else{
-                System.out.println("\n Post Product Installation Fail ! ");
-            }
-            System.out.println("---------------------------------------------------------------------------\n\n\n");
-        }else{
-            System.out.println("\n Response is null ! ");
-            System.out.println("---------------------------------------------------------------------------\n\n\n");
-        }
+        assertThat(response).isNotNull();
+        assertThat(response.getCode()).isNotNull();
+        assertThat(response.getCode().toString()).startsWith("2");
     }
 
     /* ams/v1/p/c?id=xxxx GET  */
     public void test_QryProdChg() throws Exception{
-        System.out.println("\n\n\n---------------------------------------------------------------------------");
         System.out.println("Enter the test_QryProdChg function \n");
         //query short id of client
         AmsClient clt=AmsCltSrv.findByClientUUID("testuuid001");
@@ -513,27 +497,17 @@ public class CoapTestDemo {
         URI uri=new URI(base_uri+test_QryProdChg_uri+"?id="+clt.getId()+"");
         CoapClient client=new CoapClient(uri);
         CoapResponse response=client.get();
+        System.out.println(Utils.prettyPrint(response));
 
-        if(response!=null){
-            System.out.println("\n Response");
-            System.out.println(Utils.prettyPrint(response));
-            if(response.getCode().toString().startsWith("2")){
-                System.out.println("\n Query Product changes Success ! ");
-            }else{
-                System.out.println("\n Query Product changes Fail ! ");
-            }
-            System.out.println("---------------------------------------------------------------------------\n\n\n");
-        }else{
-            System.out.println("\n Response is null ! ");
-            System.out.println("---------------------------------------------------------------------------\n\n\n");
-        }
+        assertThat(response).isNotNull();
+        assertThat(response.getCode()).isNotNull();
+        assertThat(response.getCode().toString()).startsWith("4");
     }
 
     /* ams/v1/p/d?id=xxx&cid GET
     * need to upload productDownloadPackage in AmsUserCloud
     * */
     public void test_DownInstPkg() throws Exception{
-        System.out.println("\n\n\n---------------------------------------------------------------------------");
         System.out.println("Enter the test_DownInstPkg function \n");
         //query short id of client
         AmsClient clt=AmsCltSrv.findByClientUUID("testuuid001");
@@ -551,16 +525,13 @@ public class CoapTestDemo {
             }else{
                 System.out.println("\n Download Installation package Fail ! ");
             }
-            System.out.println("---------------------------------------------------------------------------\n\n\n");
         }else{
             System.out.println("\n Response is null ! ");
-            System.out.println("---------------------------------------------------------------------------\n\n\n");
         }
     }
 
     /* ams/v1/c/q ? pn=xxx & tt=xx & tid = xxxx & cid = xxx */
     public void test_QryCfgInfo() throws Exception{
-        System.out.println("\n\n\n---------------------------------------------------------------------------");
         System.out.println("Enter the test_QryCfgInfo function \n");
 
         //query short id of client
@@ -574,25 +545,13 @@ public class CoapTestDemo {
         CoapClient client=new CoapClient(uri);
         CoapResponse response=client.get();
 
-        if(response!=null){
-            System.out.println("\n Response");
-            System.out.println(Utils.prettyPrint(response));
-            if(response.getCode().toString().startsWith("2")){
-                System.out.println("\n Query Config Information Success ! ");
-            }else{
-                System.out.println("\n Query Config Information Fail ! ");
-            }
-            System.out.println("---------------------------------------------------------------------------\n\n\n");
-        }else{
-            System.out.println("\n Response is null ! ");
-            System.out.println("---------------------------------------------------------------------------\n\n\n");
-        }
-
+        assertThat(response).isNotNull();
+        assertThat(response.getCode()).isNotNull();
+        assertThat(response.getCode().toString()).startsWith("2");
     }
 
     /* ams/v1/c/d ? id=xxxx & cid = xxxx GET*/
     public void test_QryDownCfgCt() throws Exception{
-        System.out.println("\n\n\n---------------------------------------------------------------------------");
         System.out.println("Enter the test_QryDownCfgCt function \n");
 
         //query short id of client
@@ -604,24 +563,13 @@ public class CoapTestDemo {
         CoapClient client=new CoapClient(uri);
         CoapResponse response=client.get();
 
-        if(response!=null){
-            System.out.println("\n Response");
-            System.out.println(Utils.prettyPrint(response));
-            if(response.getCode().toString().startsWith("2")){
-                System.out.println("\n Query Download Config Information Success ! ");
-            }else{
-                System.out.println("\n Query Download Config Information Fail ! ");
-            }
-            System.out.println("---------------------------------------------------------------------------\n\n\n");
-        }else{
-            System.out.println("\n Response is null ! ");
-            System.out.println("---------------------------------------------------------------------------\n\n\n");
-        }
+        assertThat(response).isNotNull();
+        assertThat(response.getCode()).isNotNull();
+        assertThat(response.getCode().toString()).startsWith("2");
     }
 
     /* ams/v1/c/a?cid=xxxx POST */
     public void test_PostAllCfgInfo() throws Exception{
-        System.out.println("\n\n\n---------------------------------------------------------------------------");
         System.out.println("Enter the test_PostAllCfgInfo function \n");
 
         //query short id of client
@@ -649,24 +597,13 @@ public class CoapTestDemo {
         String payload = JnArr.toString();
         CoapResponse response=client.post(payload,50);
 
-        if(response!=null){
-            System.out.println("\n Response");
-            System.out.println(Utils.prettyPrint(response));
-            if(response.getCode().toString().startsWith("2")){
-                System.out.println("\n Post All Config Information Success ! ");
-            }else{
-                System.out.println("\n Post All Config Information Fail ! ");
-            }
-            System.out.println("---------------------------------------------------------------------------\n\n\n");
-        }else{
-            System.out.println("\n Response is null ! ");
-            System.out.println("---------------------------------------------------------------------------\n\n\n");
-        }
+        assertThat(response).isNotNull();
+        assertThat(response.getCode()).isNotNull();
+        assertThat(response.getCode().toString()).startsWith("2");
     }
 
     /* ams/v1/c/a GET */
     public void test_QryAllCfgInfo() throws Exception{
-        System.out.println("\n\n\n---------------------------------------------------------------------------");
         System.out.println("Enter the test_QryAllCfgInfo function \n");
 
         //query short id of client
@@ -676,19 +613,9 @@ public class CoapTestDemo {
         CoapClient client=new CoapClient(uri);
         CoapResponse response=client.get();
 
-        if(response!=null){
-            System.out.println("\n Response");
-            System.out.println(Utils.prettyPrint(response));
-            if(response.getCode().toString().startsWith("2")){
-                System.out.println("\n Query All Config Information Success ! ");
-            }else{
-                System.out.println("\n Query All Config Information Fail ! ");
-            }
-            System.out.println("---------------------------------------------------------------------------\n\n\n");
-        }else{
-            System.out.println("\n Response is null ! ");
-            System.out.println("---------------------------------------------------------------------------\n\n\n");
-        }
+        assertThat(response).isNotNull();
+        assertThat(response.getCode()).isNotNull();
+        assertThat(response.getCode().toString()).startsWith("2");
     }
 
 

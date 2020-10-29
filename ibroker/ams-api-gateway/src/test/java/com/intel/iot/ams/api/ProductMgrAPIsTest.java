@@ -134,7 +134,7 @@ public class ProductMgrAPIsTest {
     Product plcvm = pSrv.findByName("plcvm");
     assertThat(plcvm)
             .isNotNull()
-            .hasFieldOrPropertyWithValue("category", AmsConstant.ProductCategory.runtimeengine.toValue())
+            .hasFieldOrPropertyWithValue("category", AmsConstant.ProductCategory.runtime_engine.toValue())
             .hasFieldOrPropertyWithValue("vendor", "openiot")
 //TODO            .hasFieldOrPropertyWithValue("subclass", AmsConstant.K_SUBCLASS_PLC)
             .hasFieldOrPropertyWithValue("description", "runtime engine from openiot");
@@ -189,7 +189,7 @@ public class ProductMgrAPIsTest {
     Product plcapp = pSrv.findByName("plc-app-demo");
     assertThat(plcapp)
             .isNotNull()
-            .hasFieldOrPropertyWithValue("category", AmsConstant.ProductCategory.managedapp.toValue())
+            .hasFieldOrPropertyWithValue("category", AmsConstant.ProductCategory.managed_app.toValue())
             .hasFieldOrPropertyWithValue("vendor", "openiot")
 //TODO            .hasFieldOrPropertyWithValue("subclass", AmsConstant.K_SUBCLASS_PLC)
             .hasFieldOrPropertyWithValue("description", "plc app demo from openiot");
@@ -197,6 +197,7 @@ public class ProductMgrAPIsTest {
     List<ProductInstance> plcappInstances = piDao.findByProductName(plcapp.getName());
     assertThat(plcappInstances).isNotNull().hasSize(1);
     assertThat(plcappInstances.get(0)).isNotNull()
+            .hasFieldOrPropertyWithValue("instanceName", "any")
             .hasFieldOrPropertyWithValue("productName", "plc-app-demo")
             .hasFieldOrPropertyWithValue("version", "1.0")
             .hasFieldOrPropertyWithValue("cpu", "any")

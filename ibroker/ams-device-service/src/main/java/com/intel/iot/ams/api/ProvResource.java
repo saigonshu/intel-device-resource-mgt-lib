@@ -59,6 +59,7 @@ public class ProvResource extends CoapResource {
     byte[] reqPayload = exchange.getRequestPayload();
     Response resp = null;
 
+    System.out.println("post provision request received!");
     ClientProvisioningRequest request = parsePayload(reqPayload);
     if (request == null || request.getDi() == null || request.getSerial() == null) {
       resp = new Response(ResponseCode.BAD_REQUEST);

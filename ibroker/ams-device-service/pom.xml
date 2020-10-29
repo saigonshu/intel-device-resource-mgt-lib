@@ -21,6 +21,18 @@
       <scope>test</scope>
     </dependency>
     <dependency>
+      <groupId>org.springframework</groupId>
+      <artifactId>spring-test</artifactId>
+      <version>4.1.7.RELEASE</version>
+      <scope>test</scope>
+    </dependency>
+    <dependency>
+      <groupId>org.assertj</groupId>
+      <artifactId>assertj-core</artifactId>
+      <version>3.4.1</version>
+      <scope>test</scope>
+    </dependency>
+    <dependency>
       <groupId>log4j</groupId>
       <artifactId>log4j</artifactId>
     </dependency>
@@ -425,15 +437,15 @@
           <encoding>${project.build.sourceEncoding}</encoding>
         </configuration>
       </plugin>
-      <plugin>
-        <groupId>org.apache.maven.plugins</groupId>
-        <artifactId>maven-surefire-plugin</artifactId>
-        <version>2.12</version>
-        <configuration>
-          <printSummary>false</printSummary>
-          <redirectTestOutputToFile>true</redirectTestOutputToFile>
-        </configuration>
-      </plugin>
+<!--      <plugin>-->
+<!--        <groupId>org.apache.maven.plugins</groupId>-->
+<!--        <artifactId>maven-surefire-plugin</artifactId>-->
+<!--        <version>2.12</version>-->
+<!--        <configuration>-->
+<!--          <printSummary>true</printSummary>-->
+<!--          <redirectTestOutputToFile>true</redirectTestOutputToFile>-->
+<!--        </configuration>-->
+<!--      </plugin>-->
       <plugin>
         <groupId>org.apache.maven.plugins</groupId>
         <artifactId>maven-deploy-plugin</artifactId>
