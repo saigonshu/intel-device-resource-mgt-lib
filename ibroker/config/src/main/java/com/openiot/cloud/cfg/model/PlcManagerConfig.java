@@ -424,6 +424,7 @@ public class PlcManagerConfig {
 
             //1. for plcMgrCfg.peer
             plcMgrCfg.setId(d.getId());
+            plcMgrCfg.peer = new PeerEntity();
             plcMgrCfg.peer.setName(getDeviceUc(gw, K_NAME));
             plcMgrCfg.peer.setIp(getDeviceUc(gw, K_IP));
             plcMgrCfg.peer.setKey(getDeviceUc(gw, K_kEY));
@@ -442,11 +443,11 @@ public class PlcManagerConfig {
                         return vps.stream().map(vp -> {
                             VirtualPlc vPlc = new VirtualPlc();
                             Optional<Device> oPv = Optional.ofNullable(vp);
-                            vPlc.setName(getDeviceUc(oPv, K_NAME));
+                            vPlc.setName(vp.getName());
                             vPlc.setPlcRuntimeSoftware(getDeviceUc(oPv, K_PLC_SFT));
                             vPlc.setPlcRuntimeSoftwareVer(getDeviceUc(oPv, K_PLC_SFT_VER));
                             vPlc.setPlcApp(getDeviceUc(oPv, K_PLC_APP));
-                            vPlc.setPlcAppVer(getDeviceUc(oPv, K_PLC_SFT_VER));
+                            vPlc.setPlcAppVer(getDeviceUc(oPv, K_PLC_APP_VER));
                             vPlc.setStartMode(getDeviceUc(oPv, K_START));
                             Boolean cv = Optional.ofNullable(getDeviceUc(oPv, K_DEBUG))
                                     .map(v -> Boolean.valueOf(v)).orElse(null);
@@ -469,11 +470,11 @@ public class PlcManagerConfig {
                         return rps.stream().map(rp -> {
                             RealPlc rPlc = new RealPlc();
                             Optional<Device> oPv = Optional.ofNullable(rp);
-                            rPlc.setName(getDeviceUc(oPv, K_NAME));
+                            rPlc.setName(rp.getName());
                             rPlc.setPlcRuntimeSoftware(getDeviceUc(oPv, K_PLC_SFT));
                             rPlc.setPlcRuntimeSoftwareVer(getDeviceUc(oPv, K_PLC_SFT_VER));
                             rPlc.setPlcApp(getDeviceUc(oPv, K_PLC_APP));
-                            rPlc.setPlcAppVer(getDeviceUc(oPv, K_PLC_SFT_VER));
+                            rPlc.setPlcAppVer(getDeviceUc(oPv, K_PLC_APP_VER));
 
                             Address addr = new Address();
                             Integer port = Optional.ofNullable(getDeviceUc(oPv, K_PORT))

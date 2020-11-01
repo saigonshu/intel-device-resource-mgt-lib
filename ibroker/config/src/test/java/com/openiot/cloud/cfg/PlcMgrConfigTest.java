@@ -83,7 +83,8 @@ public class PlcMgrConfigTest {
       List<Config> config = cfgRepo.findAll();
       assertThat(config).isNotNull().isNotEmpty().hasSize(2);
 
-      String configJson = config.get(1).getConfig();
+      int index = config.get(0).getTargetType()==ConstDef.CFG_TT_PLC_MGR?0:1;
+      String configJson = config.get(index).getConfig();
       PlcManagerConfig devCfg = new ObjectMapper().readValue(configJson, PlcManagerConfig.class);
 
       assertCfg(devCfg);
@@ -100,7 +101,8 @@ public class PlcMgrConfigTest {
       List<Config> config = cfgRepo.findAll();
       assertThat(config).isNotNull().isNotEmpty().hasSize(2);
 
-      String configJson = config.get(1).getConfig();
+      int index = config.get(0).getTargetType()==ConstDef.CFG_TT_PLC_MGR?0:1;
+      String configJson = config.get(index).getConfig();
       PlcManagerConfig devCfg = new ObjectMapper().readValue(configJson, PlcManagerConfig.class);
 
       assertCfg(devCfg);
@@ -117,7 +119,8 @@ public class PlcMgrConfigTest {
       List<Config> config = cfgRepo.findAll();
       assertThat(config).isNotNull().isNotEmpty().hasSize(2);
 
-      String configJson = config.get(1).getConfig();
+      int index = config.get(0).getTargetType()==ConstDef.CFG_TT_PLC_MGR?0:1;
+      String configJson = config.get(index).getConfig();
       PlcManagerConfig devCfg = new ObjectMapper().readValue(configJson, PlcManagerConfig.class);
 
       assertCfg(devCfg);
@@ -144,8 +147,8 @@ public class PlcMgrConfigTest {
             .isNotNull()
             .hasFieldOrPropertyWithValue("id", "plc-gw")
             .hasFieldOrProperty("peer")
-            .hasFieldOrProperty("virtual-plcs")
-            .hasFieldOrProperty("real-plcs")
+            .hasFieldOrProperty("vPlcs")
+            .hasFieldOrProperty("rPlcs")
             .hasNoNullFieldsOrPropertiesExcept("credential");
 
     assertThat(devCfg.getPeer())
@@ -153,9 +156,9 @@ public class PlcMgrConfigTest {
             .hasFieldOrPropertyWithValue("name", "cardio")
             .hasFieldOrPropertyWithValue("ip", "192.168.1.1")
             .hasFieldOrPropertyWithValue("port", 180)
-            .hasFieldOrPropertyWithValue("hb-ms", 12)
+            .hasFieldOrPropertyWithValue("hbInMs", 12)
             .hasFieldOrPropertyWithValue("role", "master")
-            .hasFieldOrPropertyWithValue("loss-action", "reset")
+            .hasFieldOrPropertyWithValue("lossAction", "reset")
             .hasNoNullFieldsOrPropertiesExcept("key");
 
     assertThat(devCfg.getvPlcs())
@@ -169,22 +172,22 @@ public class PlcMgrConfigTest {
     assertThat(devCfg.getvPlcs().get(0))
             .isNotNull()
             .hasFieldOrPropertyWithValue("name", "vplc-1")
-            .hasFieldOrPropertyWithValue("plc-runtime", "plc_runtime1")
-            .hasFieldOrPropertyWithValue("plc-runtime-ver", "1.1")
-            .hasFieldOrPropertyWithValue("plc-app", "plc_app1")
-            .hasFieldOrPropertyWithValue("plc-app=ver", "2.1")
-            .hasFieldOrPropertyWithValue("start", "auto")
-            .hasFieldOrPropertyWithValue("debug", "true")
-            .hasFieldOrPropertyWithValue("local-standby", "true")
-            .hasFieldOrPropertyWithValue("remote-standby", "false");
+            .hasFieldOrPropertyWithValue("plcRuntimeSoftware", "plc_runtime1")
+            .hasFieldOrPropertyWithValue("plcRuntimeSoftwareVer", "1.1")
+            .hasFieldOrPropertyWithValue("plcApp", "plc_app1")
+            .hasFieldOrPropertyWithValue("plcAppVer", "2.1")
+            .hasFieldOrPropertyWithValue("startMode", "auto")
+            .hasFieldOrPropertyWithValue("debugMode", true)
+            .hasFieldOrPropertyWithValue("localStandby", true)
+            .hasFieldOrPropertyWithValue("remoteStandby", false);
 
     assertThat(devCfg.getrPlcs().get(0))
             .isNotNull()
             .hasFieldOrPropertyWithValue("name", "rplc-1")
-            .hasFieldOrPropertyWithValue("plc-runtime", "plc_runtime1")
-            .hasFieldOrPropertyWithValue("plc-runtime-ver", "1.1")
-            .hasFieldOrPropertyWithValue("plc-app", "plc_app1")
-            .hasFieldOrPropertyWithValue("plc-app=ver", "2.1")
+            .hasFieldOrPropertyWithValue("plcRuntimeSoftware", "plc_runtime1")
+            .hasFieldOrPropertyWithValue("plcRuntimeSoftwareVer", "1.1")
+            .hasFieldOrPropertyWithValue("plcApp", "plc_app1")
+            .hasFieldOrPropertyWithValue("plcAppVer", "2.1")
             .hasFieldOrProperty("addr");
     assertThat(devCfg.getrPlcs().get(0).getAddr())
             .isNotNull()

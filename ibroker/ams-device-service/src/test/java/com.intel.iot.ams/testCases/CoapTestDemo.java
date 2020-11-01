@@ -83,15 +83,14 @@ public class CoapTestDemo {
     public void testMain() throws Exception{
       test_prov();    //should always run in every time
       test_SetTmplt();
-      //should test before product_map & PostProdInst, removeProductChange in these 2 cases.
-      //Besides, AmsTask thread will constantly query task and may removeProductChanges too.
+      test_PostProdInst();
+      test_prod_map();
+      addAmsTask();
       test_QryProdChg();
 
       test_QryDownCfgCt();
 
-      test_prod_map();
       test_GetTmplt();
-      test_PostProdInst();
       test_QryDownCfgCt();
 
       //test_DownInstPkg();
@@ -100,6 +99,23 @@ public class CoapTestDemo {
       test_QryAllCfgInfo();
 
       test_QryCfgInfo();
+    }
+
+    private void addAmsTask() {
+        AmsTask amsTask = new AmsTask();
+        amsTask.setTaskPriority(1);
+        amsTask.setTaskType(1);
+        amsTask.setTaskProperties("{\"client_uuid\":\"testuuid001\"}");
+        TaskSrv.save(amsTask);
+
+        while(TaskSrv.getTopTask()!=null){
+            System.out.println("wait 1s for ams task handled!");
+            try {
+                Thread.sleep(1000);
+            } catch (InterruptedException e) {
+                e.printStackTrace();
+            }
+        }
     }
 
     @Before
@@ -501,7 +517,7 @@ public class CoapTestDemo {
 
         assertThat(response).isNotNull();
         assertThat(response.getCode()).isNotNull();
-        assertThat(response.getCode().toString()).startsWith("4");
+        assertThat(response.getCode().toString()).startsWith("2");
     }
 
     /* ams/v1/p/d?id=xxx&cid GET

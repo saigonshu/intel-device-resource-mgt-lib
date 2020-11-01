@@ -176,19 +176,19 @@ public class ConfigTaskHandler implements IConnectResponseHandler {
 
   private void generatePlcMgrConfiguration(Device gateway) {
     logger.debug("going to generatePlcMgrConfiguration for {}", gateway.getId());
-    Optional<List<Device>> childDevices = Optional.ofNullable(devRepo.findByIAgentId(gateway.getiAgentId()));
-    Optional<List<Device>> vplcs = childDevices.filter(ds->!ds.isEmpty()).map(ds -> ds.stream()
-            .filter(d -> d.getDeviceType().equals(ConstDef.DEV_TYPE_VPLC))
+    Optional<List<Device>> childDevices = Optional.ofNullable(devRepo.findByIAgentId(gateway.getId()));
+    Optional<List<Device>> vplcs = childDevices.filter(ds->ds!=null && !ds.isEmpty()).map(ds -> ds.stream()
+            .filter(d -> d.getDeviceType()!=null && d.getDeviceType().equals(ConstDef.DEV_TYPE_VPLC))
             .collect(Collectors.toList()));
-    Optional<List<Device>> rplcs = childDevices.filter(ds->!ds.isEmpty()).map(ds -> ds.stream()
-            .filter(d -> d.getDeviceType().equals(ConstDef.DEV_TYPE_RPLC))
+    Optional<List<Device>> rplcs = childDevices.filter(ds->ds!=null && !ds.isEmpty()).map(ds -> ds.stream()
+            .filter(d -> d.getDeviceType()!=null && d.getDeviceType().equals(ConstDef.DEV_TYPE_RPLC))
             .collect(Collectors.toList()));
     Optional<PlcManagerConfig> plcMgrCfg =
             Optional.ofNullable(
                     PlcManagerConfig.from(Optional.ofNullable(gateway), vplcs, rplcs));
     plcMgrCfg
             .map(dc -> dc.toJsonString())
-            .filter(dcJson -> !dcJson.isEmpty())
+            .filter(dcJson -> dcJson!=null && !dcJson.isEmpty())
             .ifPresent(dcJson -> addConfig(ConstDef.CFG_TT_PLC_MGR, gateway.getId(), dcJson));
   }
 

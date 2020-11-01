@@ -130,7 +130,7 @@ public class ConfigUploader {
           } else if (cf.getTargetType().equals(ConstDef.CFG_TT_PLC_MGR)) {
             amsUrl =
                     String.format(
-                            amsUrlPattern.replace("product_name=iagent", "product_name=plc-manager"),
+                            amsUrlPattern.replace("product_name="+ConstDef.CFG_PRN_IAGENT, "product_name="+ConstDef.CFG_PRN_PLCMGR),
                             amsUserCloudAddress,
                             amsUserCloudPort,
                             ConstDef.CFG_PTN_PLCMGRCFG,

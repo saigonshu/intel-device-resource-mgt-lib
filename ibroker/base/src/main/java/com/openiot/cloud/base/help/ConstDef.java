@@ -605,6 +605,7 @@ public class ConstDef {
 
   // download config relevant
   public static final String CFG_PRN_IAGENT = "iagent";
+  public static final String CFG_PRN_PLCMGR = "wa-plc-framework";
   public static final String CFG_TT_DEVONGW = "device_on_gateway";
   public static final Object CFG_TT_DEV = "device";
   public static final String CFG_TT_GRP = "group";

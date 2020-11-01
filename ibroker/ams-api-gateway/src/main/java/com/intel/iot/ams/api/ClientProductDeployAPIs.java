@@ -1092,17 +1092,17 @@ public class ClientProductDeployAPIs {
     }
 
     tempList = pInstanceSrv.findByNameAndVersionAndCpu(productName, version, "ANY");
-    if (tempList != null) {
+    if (tempList != null && !tempList.isEmpty()) {
       return tempList.get(0);
     }
 
     tempList = pInstanceSrv.findByNameAndVersionAndCpu(productName, version, "Any");
-    if (tempList != null) {
+    if (tempList != null && !tempList.isEmpty()) {
       return tempList.get(0);
     }
 
     tempList = pInstanceSrv.findByNameAndVersionAndCpu(productName, version, "any");
-    if (tempList != null) {
+    if (tempList != null && !tempList.isEmpty()) {
       return tempList.get(0);
     }
 
