@@ -6,6 +6,7 @@ package com.intel.iot.ams.api;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.intel.iot.ams.entity.*;
+import com.intel.iot.ams.repository.ApiProfilesDao;
 import com.intel.iot.ams.repository.ProductDependencyDao;
 import com.intel.iot.ams.repository.ProductInstanceDao;
 import com.intel.iot.ams.repository.ProductPropertyDao;
@@ -24,8 +25,18 @@ import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
+import org.springframework.mock.web.MockHttpServletResponse;
 import org.springframework.test.context.junit4.SpringRunner;
+import org.springframework.test.web.servlet.MockMvc;
+import org.springframework.test.web.servlet.MockMvcBuilder;
+import org.springframework.test.web.servlet.MvcResult;
+import org.springframework.test.web.servlet.ResultActions;
+import org.springframework.test.web.servlet.request.MockHttpServletRequestBuilder;
+import org.springframework.test.web.servlet.request.MockMvcRequestBuilders;
+import org.springframework.test.web.servlet.setup.DefaultMockMvcBuilder;
+import org.springframework.test.web.servlet.setup.MockMvcBuilders;
 import org.springframework.util.ResourceUtils;
+import org.springframework.web.context.WebApplicationContext;
 
 import java.io.File;
 import java.io.FileNotFoundException;
@@ -33,6 +44,8 @@ import java.util.ArrayList;
 import java.util.List;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.content;
+import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
 @RunWith(SpringRunner.class)
 @SpringBootTest
@@ -44,10 +57,13 @@ public class ProductMgrAPIsTest {
   @Autowired private CfgIdentifierService cfgIdSrv;
   @Autowired private ProductPropertyDao ppDao;
   @Autowired private ProductDependencyDao pdDao;
+  @Autowired private ApiProfilesDao apiProfilesDao;
 
   @Autowired private ProductMgrAPIs productMgrAPIs;
   @Autowired private ObjectMapper objectMapper;
   @Autowired private AmsConstant AmsConst;
+
+  @Autowired private WebApplicationContext webCtx;
 
   private List<AmsClient> amsClientList = new ArrayList<>();
 
@@ -67,6 +83,7 @@ public class ProductMgrAPIsTest {
 
     ppDao.deleteAll();
     pdDao.deleteAll();
+    apiProfilesDao.deleteAll();
 
     deleteDir(AmsConst.tempPath);
   }
@@ -136,7 +153,7 @@ public class ProductMgrAPIsTest {
             .isNotNull()
             .hasFieldOrPropertyWithValue("category", AmsConstant.ProductCategory.runtime_engine.toValue())
             .hasFieldOrPropertyWithValue("vendor", "openiot")
-//TODO            .hasFieldOrPropertyWithValue("subclass", AmsConstant.K_SUBCLASS_PLC)
+            .hasFieldOrPropertyWithValue("subclass", AmsConstant.K_SUBCLASS_PLC)
             .hasFieldOrPropertyWithValue("description", "runtime engine from openiot");
     // check cfg record
     List<ProductInstance> plcvmInstances = piDao.findByProductName(plcvm.getName());
@@ -168,7 +185,18 @@ public class ProductMgrAPIsTest {
     List<ProductDependency> pds = pdDao.findByDependencyName(plcvm.getName());
     assertThat(pds).hasSize(0);
 
-    //TODO check for api profile
+    //check for api profile
+    List<ApiProfiles> apiProfiles = apiProfilesDao.findByProductNameAndProductVersion(plcvm.getName(), plcvmInstances.get(piIndex).getVersion());
+    assertThat(apiProfiles).isNotNull().hasSize(2);
+    int apiOs = apiProfiles.get(0).getApi().equals("os") ? 0 : 1;
+    assertThat(apiProfiles.get(apiOs)).isNotNull()
+            .hasFieldOrPropertyWithValue("api", "os")
+            .hasFieldOrPropertyWithValue("level", 25)
+            .hasFieldOrPropertyWithValue("backward", 22);
+    assertThat(apiProfiles.get(1-apiOs)).isNotNull()
+            .hasFieldOrPropertyWithValue("api", "ai")
+            .hasFieldOrPropertyWithValue("level", 2)
+            .hasFieldOrPropertyWithValue("backward", 2);
 
 
     deleteDir(AmsConst.repoPath+plcvm.getName());
@@ -191,7 +219,7 @@ public class ProductMgrAPIsTest {
             .isNotNull()
             .hasFieldOrPropertyWithValue("category", AmsConstant.ProductCategory.managed_app.toValue())
             .hasFieldOrPropertyWithValue("vendor", "openiot")
-//TODO            .hasFieldOrPropertyWithValue("subclass", AmsConstant.K_SUBCLASS_PLC)
+            .hasFieldOrPropertyWithValue("subclass", AmsConstant.K_SUBCLASS_PLC)
             .hasFieldOrPropertyWithValue("description", "plc app demo from openiot");
     // check product instance record
     List<ProductInstance> plcappInstances = piDao.findByProductName(plcapp.getName());
@@ -220,9 +248,71 @@ public class ProductMgrAPIsTest {
     List<ProductDependency> pds = pdDao.findByDependencyName(plcapp.getName());
     assertThat(pds).hasSize(0);
 
-    //TODO check for api profile
+    //check for api profile
+    List<ApiProfiles> apiProfiles = apiProfilesDao.findByProductNameAndProductVersion(plcapp.getName(), plcappInstances.get(0).getVersion());
+    assertThat(apiProfiles).isNotNull().hasSize(2);
+    int apiOs = apiProfiles.get(0).getApi().equals("os") ? 0 : 1;
+    assertThat(apiProfiles.get(apiOs)).isNotNull()
+            .hasFieldOrPropertyWithValue("api", "os")
+            .hasFieldOrPropertyWithValue("level", 21)
+            .hasNoNullFieldsOrPropertiesExcept("backward");
+    assertThat(apiProfiles.get(1-apiOs)).isNotNull()
+            .hasFieldOrPropertyWithValue("api", "ai")
+            .hasFieldOrPropertyWithValue("level", 2)
+            .hasNoNullFieldsOrPropertiesExcept("backward");
 
     deleteDir(AmsConst.repoPath+plcapp.getName());
+  }
+
+  @Test
+  public void testGetProdcut(){
+    MockMvc webMock = MockMvcBuilders.webAppContextSetup(webCtx).build();
+
+    // prepare product and product instance
+    String pathUnzip = unzipResource("plcapp.zip");
+    assertThat(pathUnzip).isNotNull();
+    ResponseEntity<String> response = productMgrAPIs.handleZipPkgUpload(pathUnzip, null);
+    assertThat(response.getBody()).isNull();
+    assertThat(response.getStatusCode()).isEqualTo(HttpStatus.OK);
+
+    pathUnzip = unzipResource("plcvm.zip");
+    assertThat(pathUnzip).isNotNull();
+    response = productMgrAPIs.handleZipPkgUpload(pathUnzip, null);
+    assertThat(response.getBody()).isNull();
+    assertThat(response.getStatusCode()).isEqualTo(HttpStatus.OK);
+
+    // test successfully get scenario
+    String cate = AmsConstant.ProductCategory.managed_app.name();
+    MockHttpServletRequestBuilder mockHttpServletRequestBuilder = MockMvcRequestBuilders.get("/ams_user_cloud/ams/v1/product" );
+    mockHttpServletRequestBuilder.param("category", cate );
+    mockHttpServletRequestBuilder.param("supporting_runtime_name", "plcvm");
+    mockHttpServletRequestBuilder.param("supporting_runtime_ver", "1.0");
+    ResultActions resultActions = null;
+    try {
+      resultActions = webMock.perform( mockHttpServletRequestBuilder);
+      MockHttpServletResponse result = resultActions.andReturn().getResponse();
+      String content = result.getContentAsString();
+      assertThat(content).isNotNull().contains("plc-app-demo");
+      resultActions.andExpect(status().isOk());
+    } catch (Exception e) {
+      e.printStackTrace();
+    }
+
+    // test fail to get scenario
+    List<ApiProfiles> apis = apiProfilesDao.findByProductNameAndProductVersion("plc-app-demo", "1.0");
+    assertThat(apis).isNotNull().hasSize(2);
+    apis.get(0).setLevel(100);
+    apiProfilesDao.saveAndFlush(apis.get(0));
+
+    try {
+      resultActions = webMock.perform( mockHttpServletRequestBuilder );
+      MockHttpServletResponse result = resultActions.andReturn().getResponse();
+      String content = result.getContentAsString();
+      assertThat(content).isNotNull().contains("[]");
+      resultActions.andExpect(status().isOk());
+    } catch (Exception e) {
+      e.printStackTrace();
+    }
   }
 
   private String unzipResource(String zipResourceName) {

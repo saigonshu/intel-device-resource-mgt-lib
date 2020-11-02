@@ -68,4 +68,16 @@ public class ApiProfiles {
   public String getProductVersion() {
     return productVersion;
   }
+
+  @Override
+  public String toString() {
+    return "ApiProfiles{" +
+            "id=" + id +
+            ", api='" + api + '\'' +
+            ", level=" + level +
+            ", backward=" + backward +
+            ", productName='" + productName + '\'' +
+            ", productVersion='" + productVersion + '\'' +
+            '}';
+  }
 }

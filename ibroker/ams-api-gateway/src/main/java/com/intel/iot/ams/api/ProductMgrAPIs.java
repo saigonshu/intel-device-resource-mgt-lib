@@ -23,10 +23,13 @@ import java.io.File;
 import java.io.IOException;
 import java.util.*;
 import java.util.stream.Collectors;
+import java.util.stream.Stream;
 import javax.servlet.http.HttpServletRequest;
 import lombok.extern.slf4j.Slf4j;
 import net.lingala.zip4j.exception.ZipException;
 import org.apache.commons.io.FileUtils;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
@@ -42,6 +45,7 @@ import org.springframework.web.multipart.MultipartFile;
 @RestController
 @RequestMapping("/ams_user_cloud")
 public class ProductMgrAPIs {
+  private static final Logger logger = LoggerFactory.getLogger(ProductMgrAPIs.class);
 
   @Autowired private ProductService pSrv;
 
@@ -173,10 +177,10 @@ public class ProductMgrAPIs {
     if (supporting_runtime_name != null && supporting_runtime_ver != null && categoryStr != null) {
       Integer category = ProductCategory.valueOf(categoryStr.toLowerCase()).toValue();
 
-      /* category must be "runtime_engine" */
-      if (category != ProductCategory.runtime_engine.toValue()) {
+      /* category must be "managed_app" */
+      if (category != ProductCategory.managed_app.toValue()) {
          return new ResponseEntity<String>(
-                "Query parameter \"category\" must be \"runtime_engine\" when it is used with supporting_runtime_name and supporting_runtime_ver!",
+                "Query parameter \"category\" must be \"managed_app\" when it is used with supporting_runtime_name and supporting_runtime_ver!",
                 HttpStatus.BAD_REQUEST);
       }
 
@@ -218,7 +222,8 @@ public class ProductMgrAPIs {
           /* 4. compare managed_app's apis with runtime_engine's */
           for (ApiProfiles r : rt_apiList) {
             for (ApiProfiles m : mng_apiList) {
-              if (m.getApi() == r.getApi() && m.getLevel() <= r.getBackward()) {
+              if (m.getApi().equals(r.getApi()) && m.getLevel() > r.getBackward()) {
+                logger.info("skip product instance for level {} > {} in api {}", m.getLevel(), r.getBackward(), r.getApi());
                 IsMatch = false;
                 break;
               }
@@ -227,7 +232,10 @@ public class ProductMgrAPIs {
             if (!IsMatch) { break; }
           }
           /* check if this version of managed_app match */
-          if (IsMatch) { matchedVerList.add(v); }
+          if (IsMatch) {
+            matchedVerList.add(v);
+            logger.info("found product instance: {} {}", p.getName(), v);
+          }
         }
 
         /* if this product has one compatible version at least, it's matched */
@@ -237,7 +245,9 @@ public class ProductMgrAPIs {
       }
 
       if (jProductArray != null) {
-        return new ResponseEntity<String>(jResult.toString(), HttpStatus.OK);
+        String ret = jResult.toString();
+        logger.info("api response: {}", ret);
+        return new ResponseEntity<String>(ret, HttpStatus.OK);
       }
     }
 
@@ -246,6 +256,7 @@ public class ProductMgrAPIs {
     }
 
     if (pList == null) {
+      logger.info("api response: {}", HttpStatus.NOT_FOUND);
       return new ResponseEntity<String>(HttpStatus.NOT_FOUND);
     }
 
@@ -253,7 +264,9 @@ public class ProductMgrAPIs {
       jProductArray.add(productSerialize(p, null));
     }
 
-    return new ResponseEntity<String>(jResult.toString(), HttpStatus.OK);
+    String ret = jResult.toString();
+    logger.info("api response: {}", ret);
+    return new ResponseEntity<String>(ret, HttpStatus.OK);
   }
 
   /**
@@ -998,7 +1011,7 @@ public class ProductMgrAPIs {
       }
 
       String destDirStr = AmsConst.repoPath + p.getName() + "/" + pkgInfo.getVersion();
-      System.out.println(String.format("move files from %s to %s", unzipPath, destDirStr));
+      logger.info(String.format("move files from %s to %s", unzipPath, destDirStr));
       File dstDir = new File(destDirStr);
       if (dstDir.exists()) FileUtils.deleteDirectory(dstDir);
       FileUtils.moveDirectory(new File(unzipPath), dstDir);
@@ -1039,6 +1052,11 @@ public class ProductMgrAPIs {
                 + id.getTargetType()
                 + "",
             null);
+      }
+
+      // save api profile
+      if(pkgInfo.getApiProfiles()!=null){
+        saveApiProfile(pkgInfo);
       }
 
       /** Add product instances into DB */
@@ -1087,6 +1105,22 @@ public class ProductMgrAPIs {
       return new ResponseEntity<String>("ZIP FILE I/O ERROR", HttpStatus.INTERNAL_SERVER_ERROR);
     }
     return new ResponseEntity<String>(HttpStatus.OK);
+  }
+
+  private void saveApiProfile(InstallationPackageInfo pkgInfo) {
+    apiSrv.deleteByProductNameAndProductVersion(pkgInfo.getProductName(), pkgInfo.getVersion());
+    Optional<List<InstallationPackageInfo.ApiProfile>> newProfiles = Optional.ofNullable(pkgInfo.getApiProfiles());
+    newProfiles.filter(ps->ps!=null && !ps.isEmpty()).ifPresent(ps->{
+      ps.stream().forEach(p->{
+        ApiProfiles profile = new ApiProfiles();
+        profile.setProductName(pkgInfo.getProductName());
+        profile.setProductVersion(pkgInfo.getVersion());
+        profile.setApi(p.getApiName());
+        profile.setLevel(p.getLevel());
+        if(p.getBackward()!=null) profile.setBackward(p.getBackward());
+        apiSrv.save(profile);
+        });
+      });
   }
 
   private List<ProductInstance> composeProductInstance(String unzipPath, Product p, InstallationPackageInfo pkgInfo, Date upload_time) throws Exception {
@@ -1325,6 +1359,9 @@ public class ProductMgrAPIs {
     product.setName(pkgInfo.getProductName());
     ProductCategory cate = Enums.getIfPresent(ProductCategory.class, pkgInfo.getCategory().toLowerCase()).or(ProductCategory.software_product);
     product.setCategory(cate.toValue());
+    if (pkgInfo.getSubClass() != null) {
+      product.setSubclass(pkgInfo.getSubClass());
+    }
     if (pkgInfo.getVendor() != null) {
       product.setVendor(pkgInfo.getVendor());
     }

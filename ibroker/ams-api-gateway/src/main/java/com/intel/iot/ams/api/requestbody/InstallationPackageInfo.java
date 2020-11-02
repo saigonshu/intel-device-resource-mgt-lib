@@ -15,6 +15,9 @@ public class InstallationPackageInfo {
   @SerializedName(value = "category")
   private String category;
 
+  @SerializedName(value = "subclass")
+  private String subClass;
+
   @SerializedName(value = "host_product_name")
   private String hostName;
 
@@ -62,6 +65,14 @@ public class InstallationPackageInfo {
 
   public String getVendor() {
     return vendor;
+  }
+
+  public String getSubClass() {
+    return subClass;
+  }
+
+  public void setSubClass(String subClass) {
+    this.subClass = subClass;
   }
 
   public void setProductName(String productName) {

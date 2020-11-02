@@ -12,4 +12,5 @@ public interface ApiProfilesDao extends JpaRepository<ApiProfiles, Integer> {
 
   public List<ApiProfiles> findByProductNameAndProductVersion(String productName, String productVersion);
 
+  void deleteByProductNameAndProductVersion(String productName, String productVersion);
 }

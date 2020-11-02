@@ -21,6 +21,10 @@ public class ApiProfileService extends BaseService<Integer, ApiProfiles> {
     return apiProfilesDao.findByProductNameAndProductVersion(productName, productVersion);
   }
 
+  public void deleteByProductNameAndProductVersion(String productName, String productVersion) {
+    apiProfilesDao.deleteByProductNameAndProductVersion(productName, productVersion);
+  }
+
   public List<ApiProfiles> findAll() {
     return apiProfilesDao.findAll();
   }

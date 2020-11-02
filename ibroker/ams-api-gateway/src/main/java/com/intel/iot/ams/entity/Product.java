@@ -24,6 +24,8 @@ public class Product {
   @Column(nullable = false)
   private int category;
 
+  @Column private String subclass;
+
   @Column private String description;
 
   @Column private String vendor;
@@ -74,5 +76,13 @@ public class Product {
 
   public void setVendor(String vendor) {
     this.vendor = vendor;
+  }
+
+  public String getSubclass() {
+    return subclass;
+  }
+
+  public void setSubclass(String subclass) {
+    this.subclass = subclass;
   }
 }
