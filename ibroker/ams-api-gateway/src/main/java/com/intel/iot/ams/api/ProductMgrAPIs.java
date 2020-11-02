@@ -22,6 +22,7 @@ import com.intel.iot.ams.utils.HashUtils;
 import java.io.File;
 import java.io.IOException;
 import java.util.*;
+import java.util.stream.Collectors;
 import javax.servlet.http.HttpServletRequest;
 import lombok.extern.slf4j.Slf4j;
 import net.lingala.zip4j.exception.ZipException;
@@ -66,6 +67,8 @@ public class ProductMgrAPIs {
 
   @Autowired private LogService LogSrv;
 
+  @Autowired private ApiProfileService apiSrv;
+
   @Autowired private AmsConstant AmsConst;
   // ----------------------------------------------------------------
   //
@@ -101,8 +104,14 @@ public class ProductMgrAPIs {
       @RequestParam(value = "uuid", required = false) String uuid,
       @RequestParam(value = "name", required = false) String name,
       @RequestParam(value = "category", required = false) String categoryStr,
-      @RequestParam(value = "vendor", required = false) String vendor) {
+      @RequestParam(value = "vendor", required = false) String vendor,
+      @RequestParam(value = "supporting_runtime_name", required = false) String supporting_runtime_name,
+      @RequestParam(value = "supporting_runtime_ver", required = false) String supporting_runtime_ver) {
+
     List<Product> pList = null;
+    JsonObject jResult = new JsonObject();
+    JsonArray jProductArray = new JsonArray();
+    jResult.add("product_list", jProductArray);
 
     if (uuid != null) {
       if (name != null || categoryStr != null || vendor != null) {
@@ -114,7 +123,7 @@ public class ProductMgrAPIs {
       if (p == null) {
         return new ResponseEntity<String>(HttpStatus.NOT_FOUND);
       }
-      return new ResponseEntity<String>(productSerialize(p).toString(), HttpStatus.OK);
+      return new ResponseEntity<String>(productSerialize(p, null).toString(), HttpStatus.OK);
     }
 
     if (name != null) {
@@ -127,7 +136,7 @@ public class ProductMgrAPIs {
       if (p == null) {
         return new ResponseEntity<String>(HttpStatus.NOT_FOUND);
       }
-      return new ResponseEntity<String>(productSerialize(p).toString(), HttpStatus.OK);
+      return new ResponseEntity<String>(productSerialize(p, null).toString(), HttpStatus.OK);
     }
 
     if (vendor != null) {
@@ -156,6 +165,82 @@ public class ProductMgrAPIs {
       }
     }
 
+    /**
+     * find compatible managed app with supporting_runtime_name &
+     *                                  supporting_runtime_ver &
+     *                                  category = "runtime_engine"
+     */
+    if (supporting_runtime_name != null && supporting_runtime_ver != null && categoryStr != null) {
+      Integer category = ProductCategory.valueOf(categoryStr.toLowerCase()).toValue();
+
+      /* category must be "runtime_engine" */
+      if (category != ProductCategory.runtime_engine.toValue()) {
+         return new ResponseEntity<String>(
+                "Query parameter \"category\" must be \"runtime_engine\" when it is used with supporting_runtime_name and supporting_runtime_ver!",
+                HttpStatus.BAD_REQUEST);
+      }
+
+      List<ApiProfiles> rt_apiList = apiSrv.findByProductNameAndProductVersion(supporting_runtime_name, supporting_runtime_ver);
+      /**
+       *  compatible managed app softwares should has the same api count and name:
+       *    - get all api name in rt_apList
+       *    - get all api name in managed app ApiProfiles list
+       *  compare if these 2 api string list are the same
+       */
+      if (rt_apiList == null) {
+        return new ResponseEntity<String>(
+          "Can't find any apiprofile of this supporting runtime engine", HttpStatus.BAD_REQUEST);
+      }
+      List<String> rt_apiStr = rt_apiList.stream()
+                                         .map(x -> x.getApi())
+                                         .collect(Collectors.toList());
+      rt_apiStr.sort(Comparator.comparing(String::hashCode));
+
+      List<Product> all_mng_prodList = pSrv.findByCategory(ProductCategory.managed_app.toValue());
+      for (Product p : all_mng_prodList) {
+        /* 1. get all version of this product */
+        List<String> versionList = piSrv.getVersionsByProductName(p.getName());
+        List<String> matchedVerList = null;
+
+        for (String v : versionList) {
+          boolean IsMatch = true;
+
+          /* 2. get all apis string in mng_apiList */
+          List<ApiProfiles> mng_apiList = apiSrv.findByProductNameAndProductVersion(p.getName(), v);
+          if (mng_apiList == null) { break; }
+          List<String> mng_apiStr = mng_apiList.stream().map(x -> x.getApi())
+                                               .collect(Collectors.toList());
+          mng_apiStr.sort(Comparator.comparing(String::hashCode));
+
+          /* 3. compare rt_apiStr with rt_apiStr before loop */
+          if (!mng_apiStr.toString().equals(rt_apiStr.toString())) { break; }
+
+          /* 4. compare managed_app's apis with runtime_engine's */
+          for (ApiProfiles r : rt_apiList) {
+            for (ApiProfiles m : mng_apiList) {
+              if (m.getApi() == r.getApi() && m.getLevel() <= r.getBackward()) {
+                IsMatch = false;
+                break;
+              }
+              continue;
+            }
+            if (!IsMatch) { break; }
+          }
+          /* check if this version of managed_app match */
+          if (IsMatch) { matchedVerList.add(v); }
+        }
+
+        /* if this product has one compatible version at least, it's matched */
+        if (matchedVerList != null) {
+          jProductArray.add(productSerialize(p, matchedVerList));
+        }
+      }
+
+      if (jProductArray != null) {
+        return new ResponseEntity<String>(jResult.toString(), HttpStatus.OK);
+      }
+    }
+
     if (uuid == null && name == null && categoryStr == null && vendor == null) {
       pList = pSrv.findAll();
     }
@@ -164,11 +249,8 @@ public class ProductMgrAPIs {
       return new ResponseEntity<String>(HttpStatus.NOT_FOUND);
     }
 
-    JsonObject jResult = new JsonObject();
-    JsonArray jProductArray = new JsonArray();
-    jResult.add("product_list", jProductArray);
     for (Product p : pList) {
-      jProductArray.add(productSerialize(p));
+      jProductArray.add(productSerialize(p, null));
     }
 
     return new ResponseEntity<String>(jResult.toString(), HttpStatus.OK);
@@ -411,9 +493,10 @@ public class ProductMgrAPIs {
    * @param p the Product instance to be serialized
    * @return the JSON object serialized from the Product object.
    */
-  private JsonObject productSerialize(Product p) {
-    JsonObject jProduct = new JsonObject();
+  private JsonObject productSerialize(Product p, List<String> verlist) {
+    List<String> versionList = null;
 
+    JsonObject jProduct = new JsonObject();
     jProduct.addProperty("product_uuid", p.getUuid());
     jProduct.addProperty("name", p.getName());
 
@@ -454,8 +537,13 @@ public class ProductMgrAPIs {
 
     JsonArray jVersions = new JsonArray();
     jProduct.add("versions", jVersions);
+    
+    if (verlist != null) {
+      versionList = verlist;
+    } else {
+      versionList = piSrv.getVersionsByProductName(p.getName());
+    }
 
-    List<String> versionList = piSrv.getVersionsByProductName(p.getName());
     if (versionList != null) {
       for (String version : versionList) {
         JsonObject jVersion = new JsonObject();
