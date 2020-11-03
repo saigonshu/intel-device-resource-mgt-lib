@@ -281,13 +281,40 @@ public class ProductMgrAPIsTest {
     assertThat(response.getBody()).isNull();
     assertThat(response.getStatusCode()).isEqualTo(HttpStatus.OK);
 
-    // test successfully get scenario
+    // test fail to get for subclass
     String cate = AmsConstant.ProductCategory.managed_app.name();
     MockHttpServletRequestBuilder mockHttpServletRequestBuilder = MockMvcRequestBuilders.get("/ams_user_cloud/ams/v1/product" );
     mockHttpServletRequestBuilder.param("category", cate );
+    mockHttpServletRequestBuilder.param("subclass", "JAVA");
+    ResultActions resultActions = null;
+    try {
+      resultActions = webMock.perform( mockHttpServletRequestBuilder);
+      MockHttpServletResponse result = resultActions.andReturn().getResponse();
+      String content = result.getContentAsString();
+      assertThat(content).isNotNull().contains("[]");
+      resultActions.andExpect(status().isOk());
+    } catch (Exception e) {
+      e.printStackTrace();
+    }
+
+    // test successfully get for subclass
+    mockHttpServletRequestBuilder = MockMvcRequestBuilders.get("/ams_user_cloud/ams/v1/product" );
+    mockHttpServletRequestBuilder.param("category", cate );
+    mockHttpServletRequestBuilder.param("subclass", "PLC");
+    try {
+      resultActions = webMock.perform( mockHttpServletRequestBuilder);
+      MockHttpServletResponse result = resultActions.andReturn().getResponse();
+      String content = result.getContentAsString();
+      assertThat(content).isNotNull().contains("plc-app-demo")
+      .contains("subclass").contains("api_profiles");
+      resultActions.andExpect(status().isOk());
+    } catch (Exception e) {
+      e.printStackTrace();
+    }
+
+    // test successfully get scenario
     mockHttpServletRequestBuilder.param("supporting_runtime_name", "plcvm");
     mockHttpServletRequestBuilder.param("supporting_runtime_ver", "1.0");
-    ResultActions resultActions = null;
     try {
       resultActions = webMock.perform( mockHttpServletRequestBuilder);
       MockHttpServletResponse result = resultActions.andReturn().getResponse();

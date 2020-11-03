@@ -85,4 +85,17 @@ public class Product {
   public void setSubclass(String subclass) {
     this.subclass = subclass;
   }
+
+  @Override
+  public String toString() {
+    return "Product{" +
+            "id=" + id +
+            ", uuid='" + uuid + '\'' +
+            ", name='" + name + '\'' +
+            ", category=" + category +
+            ", subclass='" + subclass + '\'' +
+            ", description='" + description + '\'' +
+            ", vendor='" + vendor + '\'' +
+            '}';
+  }
 }

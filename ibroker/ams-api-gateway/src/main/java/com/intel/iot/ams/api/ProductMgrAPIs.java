@@ -108,17 +108,21 @@ public class ProductMgrAPIs {
       @RequestParam(value = "uuid", required = false) String uuid,
       @RequestParam(value = "name", required = false) String name,
       @RequestParam(value = "category", required = false) String categoryStr,
+      @RequestParam(value = "subclass", required = false) String subclass,
       @RequestParam(value = "vendor", required = false) String vendor,
       @RequestParam(value = "supporting_runtime_name", required = false) String supporting_runtime_name,
       @RequestParam(value = "supporting_runtime_ver", required = false) String supporting_runtime_ver) {
 
+    logger.info(String.format("uuid=%s name=%s categoryStr=%s subclass=%s vendor=%s supporting_runtime_name=%s supporting_runtime_ver=%s",
+            uuid, name, categoryStr, subclass, vendor, supporting_runtime_name, supporting_runtime_ver));
     List<Product> pList = null;
     JsonObject jResult = new JsonObject();
     JsonArray jProductArray = new JsonArray();
     jResult.add("product_list", jProductArray);
 
     if (uuid != null) {
-      if (name != null || categoryStr != null || vendor != null) {
+      if (name != null || categoryStr != null || vendor != null
+      || subclass != null || supporting_runtime_name != null || supporting_runtime_ver != null) {
         return new ResponseEntity<String>(
             "Query parameter \"uuid\" cannot used together with other parameter",
             HttpStatus.BAD_REQUEST);
@@ -131,7 +135,8 @@ public class ProductMgrAPIs {
     }
 
     if (name != null) {
-      if (categoryStr != null || vendor != null) {
+      if (categoryStr != null || vendor != null || subclass != null
+         || supporting_runtime_name != null || supporting_runtime_ver != null) {
         return new ResponseEntity<String>(
             "Query parameter \"name\" cannot used together with other parameter",
             HttpStatus.BAD_REQUEST);
@@ -141,32 +146,6 @@ public class ProductMgrAPIs {
         return new ResponseEntity<String>(HttpStatus.NOT_FOUND);
       }
       return new ResponseEntity<String>(productSerialize(p, null).toString(), HttpStatus.OK);
-    }
-
-    if (vendor != null) {
-      if (categoryStr != null) {
-        try {
-          Integer category = ProductCategory.valueOf(categoryStr.toLowerCase()).toValue();
-          pList = pSrv.findByVendorAndCategory(vendor, category);
-        } catch (IllegalArgumentException e) {
-          e.printStackTrace();
-          return new ResponseEntity<String>(
-                  "Query parameter \"category\" value is invalid!", HttpStatus.BAD_REQUEST);
-        }
-      } else {
-        pList = pSrv.findByVendor(vendor);
-      }
-    }
-
-    if (categoryStr != null && vendor == null) {
-      try {
-        Integer category = ProductCategory.valueOf(categoryStr.toLowerCase()).toValue();
-        pList = pSrv.findByVendorAndCategory(vendor, category);
-      } catch (IllegalArgumentException e) {
-        e.printStackTrace();
-        return new ResponseEntity<String>(
-                "Query parameter \"category\" value is invalid!", HttpStatus.BAD_REQUEST);
-      }
     }
 
     /**
@@ -181,6 +160,13 @@ public class ProductMgrAPIs {
       if (category != ProductCategory.managed_app.toValue()) {
          return new ResponseEntity<String>(
                 "Query parameter \"category\" must be \"managed_app\" when it is used with supporting_runtime_name and supporting_runtime_ver!",
+                HttpStatus.BAD_REQUEST);
+      }
+
+      Product pi = pSrv.findByName(supporting_runtime_name);
+      if (pi==null) {
+        return new ResponseEntity<String>(
+                String.format(" no product %s  found !", supporting_runtime_name, supporting_runtime_ver),
                 HttpStatus.BAD_REQUEST);
       }
 
@@ -200,7 +186,8 @@ public class ProductMgrAPIs {
                                          .collect(Collectors.toList());
       rt_apiStr.sort(Comparator.comparing(String::hashCode));
 
-      List<Product> all_mng_prodList = pSrv.findByCategory(ProductCategory.managed_app.toValue());
+      List<Product> all_mng_prodList = pSrv.findCommon(null,
+              String.valueOf(ProductCategory.managed_app.toValue()), pi.getSubclass());
       for (Product p : all_mng_prodList) {
         /* 1. get all version of this product */
         List<String> versionList = piSrv.getVersionsByProductName(p.getName());
@@ -251,9 +238,18 @@ public class ProductMgrAPIs {
       }
     }
 
-    if (uuid == null && name == null && categoryStr == null && vendor == null) {
-      pList = pSrv.findAll();
+    if (categoryStr != null) {
+      try {
+        Integer category = ProductCategory.valueOf(categoryStr.toLowerCase()).toValue();
+        categoryStr = String.valueOf(category);
+      } catch (IllegalArgumentException e) {
+        e.printStackTrace();
+        return new ResponseEntity<String>(
+                "Query parameter \"category\" value is invalid!", HttpStatus.BAD_REQUEST);
+      }
     }
+
+    pList = pSrv.findCommon(vendor, categoryStr, subclass);
 
     if (pList == null) {
       logger.info("api response: {}", HttpStatus.NOT_FOUND);
@@ -261,6 +257,7 @@ public class ProductMgrAPIs {
     }
 
     for (Product p : pList) {
+      logger.info("serialize product: {}", p);
       jProductArray.add(productSerialize(p, null));
     }
 
@@ -524,6 +521,10 @@ public class ProductMgrAPIs {
       jProduct.addProperty("vendor", p.getVendor());
     }
 
+    if (p.getSubclass() != null) {
+      jProduct.addProperty("subclass", p.getSubclass());
+    }
+
     JsonArray jProperties = new JsonArray();
 
     List<ProductProperty> propertyList = ppSrv.findByName(p.getName());
@@ -562,6 +563,8 @@ public class ProductMgrAPIs {
         JsonObject jVersion = new JsonObject();
 
         jVersion.addProperty("version", version);
+        Optional<JsonArray> apiProfiles = composeApiProfiles(p.getName(), version);
+        apiProfiles.ifPresent(as->jVersion.add("api_profiles",as));
         JsonArray jInstances = new JsonArray();
         jVersion.add("instances", jInstances);
 
@@ -622,6 +625,21 @@ public class ProductMgrAPIs {
       }
     }
     return jProduct;
+  }
+
+  private Optional<JsonArray> composeApiProfiles(String name, String version) {
+    List<ApiProfiles> profiles = apiSrv.findByProductNameAndProductVersion(name, version);
+    return Optional.ofNullable(profiles).filter(ps->ps!=null && !ps.isEmpty()).map(ps->{
+      JsonArray ja = new JsonArray();
+      ps.stream().map(ap->{
+        JsonObject jsonObject = new JsonObject();
+        jsonObject.addProperty("api", ap.getApi());
+        jsonObject.addProperty("level", ap.getLevel());
+        if(ap.getBackward()!=0) jsonObject.addProperty("backward", ap.getBackward());
+        return jsonObject;
+      }).forEach(jo->ja.add(jo));
+      return ja;
+    });
   }
 
   private InstallationPackageInfo parsePkgInfo(String pkgInfoPath) {

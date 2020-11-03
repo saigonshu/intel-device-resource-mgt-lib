@@ -53,6 +53,10 @@ public class ProductService extends BaseService<Integer, Product> {
     return productDao.findByVendorAndCategory(vendor, category);
   }
 
+  public List<Product> findCommon(String vendor, String category, String subclass) {
+    return productDao.findCommon(vendor, category, subclass);
+  }
+
   public List<Product> findAll() {
     return productDao.findAll();
   }
