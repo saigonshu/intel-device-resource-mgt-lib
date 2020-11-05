@@ -5,6 +5,7 @@
 package com.intel.iot.ams.api;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
+import com.google.gson.JsonObject;
 import com.intel.iot.ams.entity.*;
 import com.intel.iot.ams.repository.ApiProfilesDao;
 import com.intel.iot.ams.repository.ProductDependencyDao;
@@ -18,6 +19,7 @@ import com.intel.iot.ams.utils.AmsConstant;
 import lombok.extern.slf4j.Slf4j;
 import net.lingala.zip4j.core.ZipFile;
 import net.lingala.zip4j.exception.ZipException;
+import org.json.JSONObject;
 import org.junit.After;
 import org.junit.Test;
 import org.junit.runner.RunWith;
@@ -28,12 +30,9 @@ import org.springframework.http.ResponseEntity;
 import org.springframework.mock.web.MockHttpServletResponse;
 import org.springframework.test.context.junit4.SpringRunner;
 import org.springframework.test.web.servlet.MockMvc;
-import org.springframework.test.web.servlet.MockMvcBuilder;
-import org.springframework.test.web.servlet.MvcResult;
 import org.springframework.test.web.servlet.ResultActions;
 import org.springframework.test.web.servlet.request.MockHttpServletRequestBuilder;
 import org.springframework.test.web.servlet.request.MockMvcRequestBuilders;
-import org.springframework.test.web.servlet.setup.DefaultMockMvcBuilder;
 import org.springframework.test.web.servlet.setup.MockMvcBuilders;
 import org.springframework.util.ResourceUtils;
 import org.springframework.web.context.WebApplicationContext;
@@ -44,7 +43,6 @@ import java.util.ArrayList;
 import java.util.List;
 
 import static org.assertj.core.api.Assertions.assertThat;
-import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.content;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
 @RunWith(SpringRunner.class)
@@ -319,8 +317,27 @@ public class ProductMgrAPIsTest {
       resultActions = webMock.perform( mockHttpServletRequestBuilder);
       MockHttpServletResponse result = resultActions.andReturn().getResponse();
       String content = result.getContentAsString();
-      assertThat(content).isNotNull().contains("plc-app-demo");
       resultActions.andExpect(status().isOk());
+      assertThat(content).isNotNull().contains("plc-app-demo");
+      JSONObject jsonContent = new JSONObject(content);
+      assertThat(jsonContent.getJSONArray("product_list").length()).isEqualTo(1);
+
+      // assert product
+      JSONObject product = new JSONObject(jsonContent.getJSONArray("product_list").getString(0));
+      assertThat(product.get("name")).isEqualTo("plc-app-demo");
+      assertThat(product.get("category")).isEqualTo("managed_app");
+      assertThat(product.get("subclass")).isEqualTo("PLC");
+      assertThat(product.getJSONArray("versions").length()).isEqualTo(1);
+
+      // assert version
+      JSONObject version = product.getJSONArray("versions").getJSONObject(0);
+      assertThat(version.get("version")).isEqualTo("1.0");
+      assertThat(version.getJSONArray("api_profiles").length()).isEqualTo(2);
+
+      // assert product
+      JSONObject api = version.getJSONArray("api_profiles").getJSONObject(0);
+      assertThat(api.get("api")).isEqualTo("os");
+      assertThat(api.get("level")).isEqualTo(21);
     } catch (Exception e) {
       e.printStackTrace();
     }

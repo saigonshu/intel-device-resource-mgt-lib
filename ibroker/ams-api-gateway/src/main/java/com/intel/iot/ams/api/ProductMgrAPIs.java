@@ -191,7 +191,7 @@ public class ProductMgrAPIs {
       for (Product p : all_mng_prodList) {
         /* 1. get all version of this product */
         List<String> versionList = piSrv.getVersionsByProductName(p.getName());
-        List<String> matchedVerList = null;
+        List<String> matchedVerList = new ArrayList<String>();
 
         for (String v : versionList) {
           boolean IsMatch = true;
