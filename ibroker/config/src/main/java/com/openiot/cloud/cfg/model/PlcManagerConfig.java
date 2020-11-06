@@ -425,15 +425,15 @@ public class PlcManagerConfig {
             //1. for plcMgrCfg.peer
             plcMgrCfg.setId(d.getId());
             plcMgrCfg.peer = new PeerEntity();
-            plcMgrCfg.peer.setName(getDeviceUc(gw, K_NAME));
-            plcMgrCfg.peer.setIp(getDeviceUc(gw, K_IP));
-            plcMgrCfg.peer.setKey(getDeviceUc(gw, K_kEY));
-            plcMgrCfg.peer.setLossAction(getDeviceUc(gw, K_LOSS_ACT));
-            plcMgrCfg.peer.setRole(getDeviceUc(gw, K_ROLE));
-            Integer value = Optional.ofNullable(getDeviceUc(gw, K_PORT))
+            plcMgrCfg.peer.setName(getDeviceUcOrAs(gw, K_NAME));
+            plcMgrCfg.peer.setIp(getDeviceUcOrAs(gw, K_IP));
+            plcMgrCfg.peer.setKey(getDeviceUcOrAs(gw, K_kEY));
+            plcMgrCfg.peer.setLossAction(getDeviceUcOrAs(gw, K_LOSS_ACT));
+            plcMgrCfg.peer.setRole(getDeviceUcOrAs(gw, K_ROLE));
+            Integer value = Optional.ofNullable(getDeviceUcOrAs(gw, K_PORT))
                     .map(v->Integer.valueOf(v)).orElse(null);
             plcMgrCfg.peer.setPort(value);
-            value = Optional.ofNullable(getDeviceUc(gw, K_HB_MS))
+            value = Optional.ofNullable(getDeviceUcOrAs(gw, K_HB_MS))
                     .map(v->Integer.valueOf(v)).orElse(null);
             plcMgrCfg.peer.setHbInMs(value);
 
@@ -503,6 +503,23 @@ public class PlcManagerConfig {
                     }
             ).orElse(null);
         }).orElse(null);
+    }
+
+    public static String getDeviceAs(Optional<Device> gw, String kName) {
+        return gw.map(d->{
+            return Optional.ofNullable(d.getConfig()).map(c->{
+                return Optional.ofNullable(c.getAttributes()).map(css->{
+                    return css.stream().filter(cs->cs.getAn().equals(kName))
+                            .findFirst().map(i->i.getAv()).orElse(null);
+                        }
+                ).orElse(null);
+                    }
+            ).orElse(null);
+        }).orElse(null);
+    }
+
+    public static String getDeviceUcOrAs(Optional<Device> gw, String kName) {
+        return Optional.ofNullable(getDeviceUc(gw, kName)).orElse(getDeviceAs(gw, kName));
     }
 
     public String toJsonString() {

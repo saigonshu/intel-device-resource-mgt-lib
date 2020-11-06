@@ -159,17 +159,20 @@ public class ConfigTaskHandler implements IConnectResponseHandler {
       if(d.getStandard()==null) return null;
 
       if (d.getStandard().equals(ConstDef.STANDARD_IAGENT)) {
-        if (d.getDeviceType().startsWith(ConstDef.DEV_TYPE_PLC_GW)) return d;
+        //if (d.getDeviceType().startsWith(ConstDef.DEV_TYPE_PLC_GW)) return d;
+        // TODO if dt of pw is set in future, then uncommnets above
+        return d;
       }else{
         String dt = d.getDeviceType();
         if (dt==null || (!dt.equals(ConstDef.DEV_TYPE_RPLC) && !dt.equals(ConstDef.DEV_TYPE_VPLC)))
           return null;
 
         Device gw = devRepo.findOneById(d.getiAgentId());
-        if (gw==null || gw.getDeviceType()==null) return null;
-        if (gw.getDeviceType().startsWith(ConstDef.DEV_TYPE_PLC_GW)) return gw;
+        //if (gw==null || gw.getDeviceType()==null) return null;
+        //if (gw.getDeviceType().startsWith(ConstDef.DEV_TYPE_PLC_GW)) return gw;
+        // TODO if dt of pw is set in future, then uncommnets above
+        return gw;
       }
-      return null;
     }).filter(d->d!=null).ifPresent(d->generatePlcMgrConfiguration(d));
 
   }
