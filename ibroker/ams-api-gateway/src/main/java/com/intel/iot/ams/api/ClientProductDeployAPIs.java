@@ -16,6 +16,9 @@ import com.intel.iot.ams.utils.AotToolUtils;
 import java.util.ArrayList;
 import java.util.Date;
 import java.util.List;
+
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
@@ -29,7 +32,7 @@ import org.springframework.web.bind.annotation.*;
 @RestController
 @RequestMapping("/ams_user_cloud")
 public class ClientProductDeployAPIs {
-
+  private static final Logger logger = LoggerFactory.getLogger(ClientProductDeployAPIs.class);
   @Autowired private ProductDeployService deploySrv;
 
   @Autowired private ProductInstalledService installSrv;
@@ -985,12 +988,18 @@ public class ClientProductDeployAPIs {
 
     List<ProductInstance> tempList = null;
     if (productName == null || version == null) {
+      logger.warn("anyone should not be null: productName={}  version={}", productName, version);
       return null;
     }
     if (category > ProductCategory.managed_app.toValue() || category < ProductCategory.software_product.toValue()) {
+      logger.warn("category={} is our of range[1:7]", category);
       return null;
     }
-    if ((category != ProductCategory.imrt_app.toValue() || category != ProductCategory.fw_app_wasm.toValue()) && client == null) {
+    if ((category != ProductCategory.imrt_app.toValue()
+       || category != ProductCategory.fw_app_wasm.toValue()
+       || category != ProductCategory.managed_app.toValue()
+    ) && client == null) {
+      logger.warn("client is null, so category should not be: {}", category);
       return null;
     }
 
@@ -1058,6 +1067,9 @@ public class ClientProductDeployAPIs {
       }
     }
 
+    logger.info("try matching product instancae by cpu={} platform={} os={} bit={}",
+            client.getCpu(), client.getPlatform(),
+            client.getOs(), client.getBits());
     tempList =
         pInstanceSrv.findByNameAndVersionAndCpuAndPlatformAndOsAndBits(
             productName,
@@ -1070,6 +1082,7 @@ public class ClientProductDeployAPIs {
       for (ProductInstance temp : tempList) {
         if (checkVerComp(client.getOsVer(), temp.getOsMin()) == true) {
           if (checkVerComp(client.getSysVer(), temp.getSysMin()) == true) {
+            logger.info("matched product instance {} found for client {}", temp, client);
             return temp;
           }
         }
@@ -1077,6 +1090,9 @@ public class ClientProductDeployAPIs {
     }
 
     if (client.getBits() != null && client.getBits().equals("64bit")) {
+      logger.info("try matching product instancae by cpu={} platform={} os={} bit={}",
+              client.getCpu(), client.getPlatform(),
+              client.getOs(), "32bit");
       tempList =
           pInstanceSrv.findByNameAndVersionAndCpuAndPlatformAndOsAndBits(
               productName, version, client.getCpu(), client.getPlatform(), client.getOs(), "32bit");
@@ -1084,6 +1100,7 @@ public class ClientProductDeployAPIs {
         for (ProductInstance temp : tempList) {
           if (checkVerComp(client.getOsVer(), temp.getOsMin()) == true) {
             if (checkVerComp(client.getSysVer(), temp.getSysMin()) == true) {
+              logger.info("matched product instance {} found for client {}", temp, client);
               return temp;
             }
           }
@@ -1091,18 +1108,24 @@ public class ClientProductDeployAPIs {
       }
     }
 
+    logger.info("try matching product instancae by cpu={}", "ANY");
     tempList = pInstanceSrv.findByNameAndVersionAndCpu(productName, version, "ANY");
     if (tempList != null && !tempList.isEmpty()) {
+      logger.info("matched product instance {} found for client {}", tempList.get(0), client);
       return tempList.get(0);
     }
 
+    logger.info("try matching product instancae by cpu={}", "Any");
     tempList = pInstanceSrv.findByNameAndVersionAndCpu(productName, version, "Any");
     if (tempList != null && !tempList.isEmpty()) {
+      logger.info("matched product instance {} found for client {}", tempList.get(0), client);
       return tempList.get(0);
     }
 
+    logger.info("try matching product instancae by cpu={}", "any");
     tempList = pInstanceSrv.findByNameAndVersionAndCpu(productName, version, "any");
     if (tempList != null && !tempList.isEmpty()) {
+      logger.info("matched product instance {} found for client {}", tempList.get(0), client);
       return tempList.get(0);
     }
 
@@ -1110,7 +1133,7 @@ public class ClientProductDeployAPIs {
   }
 
   private boolean checkVerComp(String version, String minVersion) {
-
+    logger.info("checking if veriosn={} match minVersion={}", version, minVersion);
     if (version == null || minVersion == null) {
       return true;
     }
@@ -1153,6 +1176,7 @@ public class ClientProductDeployAPIs {
       AddProductForClientInfo info, Product p) {
     AmsClient client = clientSrv.findByClientUUID(info.getClientUuid());
     if (client == null) {
+      logger.info("Fail to get ams client for {}", info);
       return new ResponseEntity<String>(
           "No such client: " + info.getClientUuid(), HttpStatus.BAD_REQUEST);
     }
@@ -1165,6 +1189,7 @@ public class ClientProductDeployAPIs {
             p.getCategory(),
             client);
     if (instance == null) {
+      logger.warn("Fail to get product instance of [{}, {}] for client {}", p.getName(), info.getVersion(), client);
       return new ResponseEntity<String>(
           "AMS has no suitable product version package for this client", HttpStatus.NOT_FOUND);
     }
@@ -1260,7 +1285,7 @@ public class ClientProductDeployAPIs {
             "No such client: " + info.getClientUuid(), HttpStatus.BAD_REQUEST);
       }
 
-      /** make sure AMS has the product instance of the adding product for the client */
+      /** make sure AMS has the product  of the adding product for the client */
       ProductInstance instance =
           findInstanceForClient(
               p.getName(),

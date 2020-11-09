@@ -73,4 +73,16 @@ public class AddProductForClientInfo {
   public void setAotEnable(Boolean aotEnable) {
     this.aotEnable = aotEnable;
   }
+
+  @Override
+  public String toString() {
+    return "AddProductForClientInfo{" +
+            "clientUuid='" + clientUuid + '\'' +
+            ", deviceId='" + deviceId + '\'' +
+            ", productName='" + productName + '\'' +
+            ", version='" + version + '\'' +
+            ", aotEnable=" + aotEnable +
+            ", category='" + category + '\'' +
+            '}';
+  }
 }

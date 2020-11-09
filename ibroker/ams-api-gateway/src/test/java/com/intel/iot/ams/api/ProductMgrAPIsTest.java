@@ -359,6 +359,57 @@ public class ProductMgrAPIsTest {
     }
   }
 
+  @Test
+  public void testGetProdcutByName(){
+    MockMvc webMock = MockMvcBuilders.webAppContextSetup(webCtx).build();
+
+    // prepare product and product instance
+    String pathUnzip = unzipResource("plcapp.zip");
+    assertThat(pathUnzip).isNotNull();
+    ResponseEntity<String> response = productMgrAPIs.handleZipPkgUpload(pathUnzip, null);
+    assertThat(response.getBody()).isNull();
+    assertThat(response.getStatusCode()).isEqualTo(HttpStatus.OK);
+
+    pathUnzip = unzipResource("plcvm.zip");
+    assertThat(pathUnzip).isNotNull();
+    response = productMgrAPIs.handleZipPkgUpload(pathUnzip, null);
+    assertThat(response.getBody()).isNull();
+    assertThat(response.getStatusCode()).isEqualTo(HttpStatus.OK);
+
+    // test successfully get for name
+    MockHttpServletRequestBuilder mockHttpServletRequestBuilder = MockMvcRequestBuilders.get("/ams_user_cloud/ams/v1/product");
+    mockHttpServletRequestBuilder.param("name", "plc-app-demo" );
+    ResultActions resultActions;
+    try {
+      resultActions = webMock.perform( mockHttpServletRequestBuilder);
+      MockHttpServletResponse result = resultActions.andReturn().getResponse();
+      String content = result.getContentAsString();
+      resultActions.andExpect(status().isOk());
+      assertThat(content).isNotNull().contains("plc-app-demo");
+      JSONObject jsonContent = new JSONObject(content);
+      assertThat(jsonContent.getJSONArray("product_list").length()).isEqualTo(1);
+
+      // assert product
+      JSONObject product = new JSONObject(jsonContent.getJSONArray("product_list").getString(0));
+      assertThat(product.get("name")).isEqualTo("plc-app-demo");
+      assertThat(product.get("category")).isEqualTo("managed_app");
+      assertThat(product.get("subclass")).isEqualTo("PLC");
+      assertThat(product.getJSONArray("versions").length()).isEqualTo(1);
+
+      // assert version
+      JSONObject version = product.getJSONArray("versions").getJSONObject(0);
+      assertThat(version.get("version")).isEqualTo("1.0");
+      assertThat(version.getJSONArray("api_profiles").length()).isEqualTo(2);
+
+      // assert product
+      JSONObject api = version.getJSONArray("api_profiles").getJSONObject(0);
+      assertThat(api.get("api")).isEqualTo("os");
+      assertThat(api.get("level")).isEqualTo(21);
+    } catch (Exception e) {
+      e.printStackTrace();
+    }
+  }
+
   private String unzipResource(String zipResourceName) {
     try {
       String pathBase = ResourceUtils.getURL("target/test-classes").getPath();

@@ -156,9 +156,7 @@ public class ConfigTaskHandler implements IConnectResponseHandler {
 
     // generate plcmgr.cfg for plc-gateway
     device.map(d->{
-      if(d.getStandard()==null) return null;
-
-      if (d.getStandard().equals(ConstDef.STANDARD_IAGENT)) {
+      if (d.getStandard()!=null && d.getStandard().equals(ConstDef.STANDARD_IAGENT)) {
         //if (d.getDeviceType().startsWith(ConstDef.DEV_TYPE_PLC_GW)) return d;
         // TODO if dt of pw is set in future, then uncommnets above
         return d;
