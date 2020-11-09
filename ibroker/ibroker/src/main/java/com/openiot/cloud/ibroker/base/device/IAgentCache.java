@@ -97,7 +97,6 @@ public class IAgentCache {
       // since the new socket context is already inserted for this iagent id.
       device.setAgentId(null);
       device.onDisconnected();
-      device.getRequestChannel().disconnect();
     }
 
     agentPool.put(aid, new IAgentOnlineInfo(agent));
@@ -152,7 +151,6 @@ public class IAgentCache {
       logger.info(String.format("such agent has lost connection for quite a long", d));
       removeAgent(d.getAgentId(), true);
       d.onDisconnected();
-      d.getRequestChannel().disconnect();
     }
   }
 

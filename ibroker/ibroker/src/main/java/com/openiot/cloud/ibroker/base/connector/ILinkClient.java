@@ -37,7 +37,8 @@ public class ILinkClient {
   }
 
   public void onDisconnected() {
-    requestMap.clear();
+    logger.error("shutdown fixed rate thread {} in requestMap !");
+    requestMap.shutDown();
   }
 
   class RequestContext {

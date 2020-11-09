@@ -83,6 +83,7 @@ public class IAgent extends Device implements Comparable<IAgent> {
     this.setSessionFlag(false);
     if (ilinkClient != null) {
       ilinkClient.onDisconnected();
+      ilinkClient.disconnect();
     }
   }
 

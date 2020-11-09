@@ -60,7 +60,6 @@ public class HandShake {
       if (agentId == null || agentId.isEmpty()) {
         logger.error("has an invalid agentId while handshaking");
         device.onDisconnected();
-        device.getRequestChannel().disconnect();
         return;
       }
       device.setAgentId(agentId);
@@ -117,9 +116,8 @@ public class HandShake {
 
               pubOnlineReq.send((pubOnlineResp) -> {}, 1, TimeUnit.SECONDS);
             } else {
-              logger.error("authentication failed! " + authStat.getReasonPhrase());
+              logger.error("shutdown gw link since authentication failed for {}! ", authStat.getReasonPhrase());
               device.onDisconnected();
-              device.getRequestChannel().disconnect();
               return;
             }
           },
