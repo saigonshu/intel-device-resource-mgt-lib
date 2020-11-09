@@ -137,6 +137,20 @@ public class ConcurrentRequestMap<K, V> {
     timestampMap.clear();
   }
 
+  public void shutDown() {
+    logger.error("expire checking thread will be shutdown by force: " + this.toString());
+    clear();
+    try {
+      ses.shutdown();
+      if(!ses.awaitTermination(1, TimeUnit.SECONDS)){
+        ses.shutdownNow();
+      }
+    } catch (InterruptedException e) {
+      e.printStackTrace();
+      ses.shutdownNow();
+    }
+  }
+
   public boolean containsKey(K key) {
     return requestMap.containsKey(key);
   }
