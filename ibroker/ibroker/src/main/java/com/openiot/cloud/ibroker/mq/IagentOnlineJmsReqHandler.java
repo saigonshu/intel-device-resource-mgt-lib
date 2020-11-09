@@ -48,7 +48,6 @@ public class IagentOnlineJmsReqHandler implements IConnectServiceHandler {
       IAgent device = dc.removeAgent(onlineIagentId, false);
       logger.debug("remove it from my side " + device);
       device.onDisconnected();
-      device.getRequestChannel().disconnect();
     }
   }
 }
