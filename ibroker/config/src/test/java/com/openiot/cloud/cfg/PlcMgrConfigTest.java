@@ -22,6 +22,7 @@ import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.data.mongodb.core.MongoTemplate;
 import org.springframework.test.context.junit4.SpringRunner;
 
+import java.util.ArrayList;
 import java.util.List;
 import java.util.Optional;
 import java.util.stream.Collectors;
@@ -55,7 +56,7 @@ public class PlcMgrConfigTest {
   }
 
   @Test
-  public void testPlcMgrConfig() {
+  public void testPlcMgrConfigWithPeer() {
     try {
       String deviceId = "plc-gw";
       Device device = devRepo.findOneById(deviceId);
@@ -71,6 +72,40 @@ public class PlcMgrConfigTest {
       System.out.println("--> " + devCfg);
 
       assertCfg(devCfg);
+    } catch (Exception e) {
+      e.printStackTrace();
+    }
+  }
+
+  @Test
+  public void testPlcMgrConfigWithoutPeer() {
+    try {
+      String deviceId = "plc-gw";
+      Device device = devRepo.findOneById(deviceId);
+      Device.Config cfg = device.getConfig();
+      cfg.setUserCfgs(new ArrayList<>());
+      device.setConfig(cfg);
+      System.out.println("--> " + device);
+      Optional<List<Device>> childDevices = Optional.ofNullable(devRepo.findByIAgentId(deviceId));
+      Optional<List<Device>> vplcs = childDevices.filter(ds->!ds.isEmpty()).map(ds -> ds.stream()
+              .filter(d -> d.getDeviceType().equals(ConstDef.DEV_TYPE_VPLC))
+              .collect(Collectors.toList()));
+      Optional<List<Device>> rplcs = childDevices.filter(ds->!ds.isEmpty()).map(ds -> ds.stream()
+              .filter(d -> d.getDeviceType().equals(ConstDef.DEV_TYPE_RPLC))
+              .collect(Collectors.toList()));
+      PlcManagerConfig devCfg = PlcManagerConfig.from(Optional.ofNullable(device), vplcs, rplcs);
+      System.out.println("--> " + devCfg);
+
+      assertThat(devCfg)
+              .isNotNull()
+              .hasFieldOrPropertyWithValue("id", "plc-gw")
+              .hasFieldOrPropertyWithValue("peer", null)
+              .hasFieldOrProperty("vPlcs")
+              .hasFieldOrProperty("rPlcs")
+              .hasFieldOrPropertyWithValue("credential", null);
+
+      assertThat(devCfg.toJsonString()).isNotNull().doesNotContain("peer");
+
     } catch (Exception e) {
       e.printStackTrace();
     }

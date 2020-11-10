@@ -52,4 +52,38 @@ public class HashUtils {
     }
     return "";
   }
+
+  public static boolean checkVerComp(String version, String minVersion) {
+    if (version == null || minVersion == null) {
+      return true;
+    }
+
+    if (version.equals(minVersion)) {
+      return true;
+    }
+
+    String[] verArray = new String[4];
+    String[] minVerArray = new String[4];
+
+    String[] tempVerArray = version.split("\\.");
+    String[] tempMinVerArray = minVersion.split("\\.");
+
+    for(int i=0; i<verArray.length; i++){
+      verArray[i] = i<tempVerArray.length?tempVerArray[i]:"0";
+    }
+
+    for(int i=0; i<minVerArray.length; i++){
+      minVerArray[i] = i<tempMinVerArray.length?tempMinVerArray[i]:"0";
+    }
+
+    for (int i = 0; i < verArray.length; i++) {
+      if (Integer.parseInt(verArray[i]) > Integer.parseInt(minVerArray[i])) {
+        return true;
+      } else if (Integer.parseInt(verArray[i]) < Integer.parseInt(minVerArray[i])) {
+        return false;
+      }
+    }
+
+    return true;
+  }
 }

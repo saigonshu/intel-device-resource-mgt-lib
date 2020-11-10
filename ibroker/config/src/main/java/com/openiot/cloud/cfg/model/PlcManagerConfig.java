@@ -424,18 +424,22 @@ public class PlcManagerConfig {
 
             //1. for plcMgrCfg.peer
             plcMgrCfg.setId(d.getId());
-            plcMgrCfg.peer = new PeerEntity();
-            plcMgrCfg.peer.setName(getDeviceUcOrAs(gw, K_NAME));
-            plcMgrCfg.peer.setIp(getDeviceUcOrAs(gw, K_IP));
-            plcMgrCfg.peer.setKey(getDeviceUcOrAs(gw, K_kEY));
-            plcMgrCfg.peer.setLossAction(getDeviceUcOrAs(gw, K_LOSS_ACT));
-            plcMgrCfg.peer.setRole(getDeviceUcOrAs(gw, K_ROLE));
-            Integer value = Optional.ofNullable(getDeviceUcOrAs(gw, K_PORT))
-                    .map(v->Integer.valueOf(v)).orElse(null);
-            plcMgrCfg.peer.setPort(value);
-            value = Optional.ofNullable(getDeviceUcOrAs(gw, K_HB_MS))
-                    .map(v->Integer.valueOf(v)).orElse(null);
-            plcMgrCfg.peer.setHbInMs(value);
+            String ip = getDeviceUcOrAs(gw, K_IP);
+            String name = getDeviceUcOrAs(gw, K_NAME);
+            if( ip!=null && name!=null ){
+                plcMgrCfg.peer = new PeerEntity();
+                plcMgrCfg.peer.setName(name);
+                plcMgrCfg.peer.setIp(ip);
+                plcMgrCfg.peer.setKey(getDeviceUcOrAs(gw, K_kEY));
+                plcMgrCfg.peer.setLossAction(getDeviceUcOrAs(gw, K_LOSS_ACT));
+                plcMgrCfg.peer.setRole(getDeviceUcOrAs(gw, K_ROLE));
+                Integer value = Optional.ofNullable(getDeviceUcOrAs(gw, K_PORT))
+                        .map(v->Integer.valueOf(v)).orElse(null);
+                plcMgrCfg.peer.setPort(value);
+                value = Optional.ofNullable(getDeviceUcOrAs(gw, K_HB_MS))
+                        .map(v->Integer.valueOf(v)).orElse(null);
+                plcMgrCfg.peer.setHbInMs(value);
+            }
 
             //2. for plcMgrCfg.virtual-plc
             List<VirtualPlc> vPlcS = vplcs.filter(vps -> !vps.isEmpty())

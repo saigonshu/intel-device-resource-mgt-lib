@@ -74,4 +74,8 @@ public class ProductInstanceService extends BaseService<Integer, ProductInstance
   public ProductInstance findById(Integer fromId) {
     return productInstanceDao.findById(fromId).orElse(null);
   }
+
+  public List<ProductInstance> findCommon(String name, String version, String cpu, String platform, String os, String system, String bits){
+    return productInstanceDao.findCommon(name, version, cpu, platform, os, system, bits);
+  }
 }

@@ -209,4 +209,29 @@ public class ProductInstance {
   public void setWasmVersion(Integer wasmVersion) {
     this.wasmVersion = wasmVersion;
   }
+
+  @Override
+  public String toString() {
+    return "ProductInstance{" +
+            "instanceId=" + instanceId +
+            ", instanceName='" + instanceName + '\'' +
+            ", productName='" + productName + '\'' +
+            ", version='" + version + '\'' +
+            ", uploadTime=" + uploadTime +
+            ", cpu='" + cpu + '\'' +
+            ", platform='" + platform + '\'' +
+            ", os='" + os + '\'' +
+            ", osMin='" + osMin + '\'' +
+            ", system='" + system + '\'' +
+            ", sysMin='" + sysMin + '\'' +
+            ", bits='" + bits + '\'' +
+            ", description='" + description + '\'' +
+            ", dependencyList='" + dependencyList + '\'' +
+            ", metadata='" + metadata + '\'' +
+            ", aotEnable=" + aotEnable +
+            ", wasmEnable=" + wasmEnable +
+            ", wasmVersion=" + wasmVersion +
+            ", minWasmVersion=" + minWasmVersion +
+            '}';
+  }
 }

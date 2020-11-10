@@ -39,4 +39,17 @@ public interface ProductInstanceDao extends JpaRepository<ProductInstance, Integ
 
   public List<ProductInstance> findByProductNameAndVersionAndCpu(
       String name, String version, String cpu);
+
+
+  @Query(value = " select * from ProductInstance where " +
+          "if(?1 != '',productName=?1, 1=1) and " +
+          "if(?2 != '', version=?2, 1=1) and " +
+          "if(?3 != '', cpu=?3, 1=1) and " +
+          "if(?4 != '', platform=?4, 1=1) and " +
+          "if(?5 != '', os=?5, 1=1) and " +
+          "if(?6 != '', system=?6, 1=1) and " +
+          "if(?7 != '', bits=?7, 1=1)"
+          , nativeQuery = true)
+  public List<ProductInstance> findCommon(String name, String version, String cpu, String platform, String os, String system, String bits);
+
 }

@@ -17,6 +17,7 @@ import java.util.ArrayList;
 import java.util.Date;
 import java.util.List;
 
+import com.intel.iot.ams.utils.HashUtils;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -1038,8 +1039,8 @@ public class ClientProductDeployAPIs {
             client.getBits());
     if (tempList != null) {
       for (ProductInstance temp : tempList) {
-        if (checkVerComp(client.getOsVer(), temp.getOsMin()) == true) {
-          if (checkVerComp(client.getSysVer(), temp.getSysMin()) == true) {
+        if (HashUtils.checkVerComp(client.getOsVer(), temp.getOsMin()) == true) {
+          if (HashUtils.checkVerComp(client.getSysVer(), temp.getSysMin()) == true) {
             return temp;
           }
         }
@@ -1058,8 +1059,8 @@ public class ClientProductDeployAPIs {
               "32bit");
       if (tempList != null) {
         for (ProductInstance temp : tempList) {
-          if (checkVerComp(client.getOsVer(), temp.getOsMin()) == true) {
-            if (checkVerComp(client.getSysVer(), temp.getSysMin()) == true) {
+          if (HashUtils.checkVerComp(client.getOsVer(), temp.getOsMin()) == true) {
+            if (HashUtils.checkVerComp(client.getSysVer(), temp.getSysMin()) == true) {
               return temp;
             }
           }
@@ -1080,8 +1081,8 @@ public class ClientProductDeployAPIs {
             client.getBits());
     if (tempList != null) {
       for (ProductInstance temp : tempList) {
-        if (checkVerComp(client.getOsVer(), temp.getOsMin()) == true) {
-          if (checkVerComp(client.getSysVer(), temp.getSysMin()) == true) {
+        if (HashUtils.checkVerComp(client.getOsVer(), temp.getOsMin()) == true) {
+          if (HashUtils.checkVerComp(client.getSysVer(), temp.getSysMin()) == true) {
             logger.info("matched product instance {} found for client {}", temp, client);
             return temp;
           }
@@ -1098,8 +1099,8 @@ public class ClientProductDeployAPIs {
               productName, version, client.getCpu(), client.getPlatform(), client.getOs(), "32bit");
       if (tempList != null) {
         for (ProductInstance temp : tempList) {
-          if (checkVerComp(client.getOsVer(), temp.getOsMin()) == true) {
-            if (checkVerComp(client.getSysVer(), temp.getSysMin()) == true) {
+          if (HashUtils.checkVerComp(client.getOsVer(), temp.getOsMin()) == true) {
+            if (HashUtils.checkVerComp(client.getSysVer(), temp.getSysMin()) == true) {
               logger.info("matched product instance {} found for client {}", temp, client);
               return temp;
             }
@@ -1132,45 +1133,6 @@ public class ClientProductDeployAPIs {
     return null;
   }
 
-  private boolean checkVerComp(String version, String minVersion) {
-    logger.info("checking if veriosn={} match minVersion={}", version, minVersion);
-    if (version == null || minVersion == null) {
-      return true;
-    }
-
-    if (version.equals(minVersion)) {
-      return true;
-    }
-
-    String[] verArray = new String[3];
-    String[] minVerArray = new String[3];
-
-    String[] tempVerArray = version.split("\\.");
-    String[] tempMinVerArray = minVersion.split("\\.");
-
-    if (tempVerArray.length == 2) {
-      System.arraycopy(tempVerArray, 0, verArray, 0, 2);
-      verArray[2] = "0";
-    } else {
-      System.arraycopy(tempVerArray, 0, verArray, 0, 3);
-    }
-    if (tempMinVerArray.length == 2) {
-      System.arraycopy(tempMinVerArray, 0, minVerArray, 0, 2);
-      minVerArray[2] = "0";
-    } else {
-      System.arraycopy(tempMinVerArray, 0, minVerArray, 0, 3);
-    }
-
-    for (int i = 0; i < 3; i++) {
-      if (Integer.parseInt(verArray[i]) > Integer.parseInt(minVerArray[i])) {
-        return true;
-      } else if (Integer.parseInt(verArray[i]) < Integer.parseInt(minVerArray[i])) {
-        return false;
-      }
-    }
-
-    return true;
-  }
 
   private ResponseEntity<String> deployProductWithClientUuid(
       AddProductForClientInfo info, Product p) {

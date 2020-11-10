@@ -7,15 +7,13 @@ package com.intel.iot.ams.api;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.google.gson.JsonObject;
 import com.intel.iot.ams.entity.*;
-import com.intel.iot.ams.repository.ApiProfilesDao;
-import com.intel.iot.ams.repository.ProductDependencyDao;
-import com.intel.iot.ams.repository.ProductInstanceDao;
-import com.intel.iot.ams.repository.ProductPropertyDao;
+import com.intel.iot.ams.repository.*;
 import com.intel.iot.ams.service.CfgIdentifierService;
 import com.intel.iot.ams.service.ProductPropertyService;
 import com.intel.iot.ams.service.ProductService;
 
 import com.intel.iot.ams.utils.AmsConstant;
+import com.intel.iot.ams.utils.HashUtils;
 import lombok.extern.slf4j.Slf4j;
 import net.lingala.zip4j.core.ZipFile;
 import net.lingala.zip4j.exception.ZipException;
@@ -40,6 +38,7 @@ import org.springframework.web.context.WebApplicationContext;
 import java.io.File;
 import java.io.FileNotFoundException;
 import java.util.ArrayList;
+import java.util.Date;
 import java.util.List;
 
 import static org.assertj.core.api.Assertions.assertThat;
@@ -49,34 +48,47 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 @SpringBootTest
 @Slf4j
 public class ProductMgrAPIsTest {
-  @Autowired private ProductService pSrv;
-  @Autowired private ProductInstanceDao piDao;
-  @Autowired private ProductPropertyService ppSrv;
-  @Autowired private CfgIdentifierService cfgIdSrv;
-  @Autowired private ProductPropertyDao ppDao;
-  @Autowired private ProductDependencyDao pdDao;
-  @Autowired private ApiProfilesDao apiProfilesDao;
+  @Autowired
+  private ProductService pSrv;
+  @Autowired
+  private ProductInstanceDao piDao;
+  @Autowired
+  private ProductPropertyService ppSrv;
+  @Autowired
+  private CfgIdentifierService cfgIdSrv;
+  @Autowired
+  private ProductPropertyDao ppDao;
+  @Autowired
+  private ProductDependencyDao pdDao;
+  @Autowired
+  private ApiProfilesDao apiProfilesDao;
+  @Autowired private AmsClientDao amsClientDao;
 
-  @Autowired private ProductMgrAPIs productMgrAPIs;
-  @Autowired private ObjectMapper objectMapper;
-  @Autowired private AmsConstant AmsConst;
+  @Autowired
+  private ProductMgrAPIs productMgrAPIs;
+  @Autowired
+  private ObjectMapper objectMapper;
+  @Autowired
+  private AmsConstant AmsConst;
 
-  @Autowired private WebApplicationContext webCtx;
+  @Autowired
+  private WebApplicationContext webCtx;
 
   private List<AmsClient> amsClientList = new ArrayList<>();
 
   @After
   public void tearDown() throws Exception {
     List<Product> ps = pSrv.findAll();
-    if (ps!=null && !ps.isEmpty()){
-      for(Product p: ps) pSrv.removeByUUID(p.getUuid());
+    if (ps != null && !ps.isEmpty()) {
+      for (Product p : ps) pSrv.removeByUUID(p.getUuid());
     }
 
     piDao.deleteAll();
+    amsClientDao.deleteAll();
 
     List<CfgIdentifier> cs = cfgIdSrv.findAll();
-    if (cs!=null && !cs.isEmpty()){
-      for(CfgIdentifier c: cs) cfgIdSrv.delete(c);
+    if (cs != null && !cs.isEmpty()) {
+      for (CfgIdentifier c : cs) cfgIdSrv.delete(c);
     }
 
     ppDao.deleteAll();
@@ -88,12 +100,7 @@ public class ProductMgrAPIsTest {
 
   @Test
   public void testUploadIagent() throws Exception {
-    String pathUnzip = unzipResource("iagent.zip");
-    assertThat(pathUnzip).isNotNull();
-
-    // POST /ams_user_cloud/ams/v1/upload
-    ResponseEntity<String> response = productMgrAPIs.handleZipPkgUpload(pathUnzip, null);
-    assertThat(response.getStatusCode()).isEqualTo(HttpStatus.OK);
+    uploadZipPakage("iagent.zip");
 
     // check product record
     Product iagent = pSrv.findByName("iagent");
@@ -131,18 +138,12 @@ public class ProductMgrAPIsTest {
     List<ProductDependency> pds = pdDao.findByDependencyName("iagent");
     assertThat(pds).hasSize(0);
 
-    deleteDir(AmsConst.repoPath+iagent.getName());
+    deleteDir(AmsConst.repoPath + iagent.getName());
   }
 
   @Test
   public void testUploadPlcVm() throws Exception {
-    String pathUnzip = unzipResource("plcvm.zip");
-    assertThat(pathUnzip).isNotNull();
-
-    // POST /ams_user_cloud/ams/v1/upload
-    ResponseEntity<String> response = productMgrAPIs.handleZipPkgUpload(pathUnzip, null);
-    assertThat(response.getBody()).isNull();
-    assertThat(response.getStatusCode()).isEqualTo(HttpStatus.OK);
+    uploadZipPakage("plcvm.zip");
 
     // check product
     // check product record
@@ -156,7 +157,7 @@ public class ProductMgrAPIsTest {
     // check cfg record
     List<ProductInstance> plcvmInstances = piDao.findByProductName(plcvm.getName());
     assertThat(plcvmInstances).isNotNull().hasSize(2);
-    int piIndex = plcvmInstances.get(0).getCpu().equals("ARM")?0:1;
+    int piIndex = plcvmInstances.get(0).getCpu().equals("ARM") ? 0 : 1;
     assertThat(plcvmInstances.get(piIndex)).isNotNull()
             .hasFieldOrPropertyWithValue("productName", "plcvm")
             .hasFieldOrPropertyWithValue("version", "1.0")
@@ -170,7 +171,7 @@ public class ProductMgrAPIsTest {
     // check product instance record
     List<CfgIdentifier> cfgs = cfgIdSrv.findAll();
     assertThat(cfgs).isNotNull().hasSize(2);
-    int cfgIndex = cfgs.get(0).getPathName().equals("/meta.cfg")?0:1;
+    int cfgIndex = cfgs.get(0).getPathName().equals("/meta.cfg") ? 0 : 1;
     assertThat(cfgs.get(cfgIndex)).isNotNull()
             .hasFieldOrPropertyWithValue("pathName", "/meta.cfg")
             .hasFieldOrPropertyWithValue("targetType", "device");
@@ -191,24 +192,18 @@ public class ProductMgrAPIsTest {
             .hasFieldOrPropertyWithValue("api", "os")
             .hasFieldOrPropertyWithValue("level", 25)
             .hasFieldOrPropertyWithValue("backward", 22);
-    assertThat(apiProfiles.get(1-apiOs)).isNotNull()
+    assertThat(apiProfiles.get(1 - apiOs)).isNotNull()
             .hasFieldOrPropertyWithValue("api", "ai")
             .hasFieldOrPropertyWithValue("level", 2)
             .hasFieldOrPropertyWithValue("backward", 2);
 
 
-    deleteDir(AmsConst.repoPath+plcvm.getName());
+    deleteDir(AmsConst.repoPath + plcvm.getName());
   }
 
   @Test
   public void testUploadPlcApp() throws Exception {
-    String pathUnzip = unzipResource("plcapp.zip");
-    assertThat(pathUnzip).isNotNull();
-
-    // POST /ams_user_cloud/ams/v1/upload
-    ResponseEntity<String> response = productMgrAPIs.handleZipPkgUpload(pathUnzip, null);
-    assertThat(response.getBody()).isNull();
-    assertThat(response.getStatusCode()).isEqualTo(HttpStatus.OK);
+    uploadZipPakage("plcapp.zip");
 
     // check product
     // check product record
@@ -233,7 +228,7 @@ public class ProductMgrAPIsTest {
     // check cfg record
     List<CfgIdentifier> cfgs = cfgIdSrv.findAll();
     assertThat(cfgs).isNotNull().hasSize(2);
-    int cfgIndex = cfgs.get(0).getPathName().equals("/meta.cfg")?0:1;
+    int cfgIndex = cfgs.get(0).getPathName().equals("/meta.cfg") ? 0 : 1;
     assertThat(cfgs.get(cfgIndex)).isNotNull()
             .hasFieldOrPropertyWithValue("pathName", "/meta.cfg")
             .hasFieldOrPropertyWithValue("targetType", "device");
@@ -254,39 +249,30 @@ public class ProductMgrAPIsTest {
             .hasFieldOrPropertyWithValue("api", "os")
             .hasFieldOrPropertyWithValue("level", 21)
             .hasNoNullFieldsOrPropertiesExcept("backward");
-    assertThat(apiProfiles.get(1-apiOs)).isNotNull()
+    assertThat(apiProfiles.get(1 - apiOs)).isNotNull()
             .hasFieldOrPropertyWithValue("api", "ai")
             .hasFieldOrPropertyWithValue("level", 2)
             .hasNoNullFieldsOrPropertiesExcept("backward");
 
-    deleteDir(AmsConst.repoPath+plcapp.getName());
+    deleteDir(AmsConst.repoPath + plcapp.getName());
   }
 
   @Test
-  public void testGetProdcut(){
+  public void testGetProdcut() {
     MockMvc webMock = MockMvcBuilders.webAppContextSetup(webCtx).build();
 
     // prepare product and product instance
-    String pathUnzip = unzipResource("plcapp.zip");
-    assertThat(pathUnzip).isNotNull();
-    ResponseEntity<String> response = productMgrAPIs.handleZipPkgUpload(pathUnzip, null);
-    assertThat(response.getBody()).isNull();
-    assertThat(response.getStatusCode()).isEqualTo(HttpStatus.OK);
-
-    pathUnzip = unzipResource("plcvm.zip");
-    assertThat(pathUnzip).isNotNull();
-    response = productMgrAPIs.handleZipPkgUpload(pathUnzip, null);
-    assertThat(response.getBody()).isNull();
-    assertThat(response.getStatusCode()).isEqualTo(HttpStatus.OK);
+    uploadZipPakage("plcapp.zip");
+    uploadZipPakage("plcvm.zip");
 
     // test fail to get for subclass
     String cate = AmsConstant.ProductCategory.managed_app.name();
-    MockHttpServletRequestBuilder mockHttpServletRequestBuilder = MockMvcRequestBuilders.get("/ams_user_cloud/ams/v1/product" );
-    mockHttpServletRequestBuilder.param("category", cate );
+    MockHttpServletRequestBuilder mockHttpServletRequestBuilder = MockMvcRequestBuilders.get("/ams_user_cloud/ams/v1/product");
+    mockHttpServletRequestBuilder.param("category", cate);
     mockHttpServletRequestBuilder.param("subclass", "JAVA");
     ResultActions resultActions = null;
     try {
-      resultActions = webMock.perform( mockHttpServletRequestBuilder);
+      resultActions = webMock.perform(mockHttpServletRequestBuilder);
       MockHttpServletResponse result = resultActions.andReturn().getResponse();
       String content = result.getContentAsString();
       assertThat(content).isNotNull().contains("[]");
@@ -296,15 +282,15 @@ public class ProductMgrAPIsTest {
     }
 
     // test successfully get for subclass
-    mockHttpServletRequestBuilder = MockMvcRequestBuilders.get("/ams_user_cloud/ams/v1/product" );
-    mockHttpServletRequestBuilder.param("category", cate );
+    mockHttpServletRequestBuilder = MockMvcRequestBuilders.get("/ams_user_cloud/ams/v1/product");
+    mockHttpServletRequestBuilder.param("category", cate);
     mockHttpServletRequestBuilder.param("subclass", "PLC");
     try {
-      resultActions = webMock.perform( mockHttpServletRequestBuilder);
+      resultActions = webMock.perform(mockHttpServletRequestBuilder);
       MockHttpServletResponse result = resultActions.andReturn().getResponse();
       String content = result.getContentAsString();
       assertThat(content).isNotNull().contains("plc-app-demo")
-      .contains("subclass").contains("api_profiles");
+              .contains("subclass").contains("api_profiles");
       resultActions.andExpect(status().isOk());
     } catch (Exception e) {
       e.printStackTrace();
@@ -314,7 +300,7 @@ public class ProductMgrAPIsTest {
     mockHttpServletRequestBuilder.param("supporting_runtime_name", "plcvm");
     mockHttpServletRequestBuilder.param("supporting_runtime_ver", "1.0");
     try {
-      resultActions = webMock.perform( mockHttpServletRequestBuilder);
+      resultActions = webMock.perform(mockHttpServletRequestBuilder);
       MockHttpServletResponse result = resultActions.andReturn().getResponse();
       String content = result.getContentAsString();
       resultActions.andExpect(status().isOk());
@@ -349,7 +335,7 @@ public class ProductMgrAPIsTest {
     apiProfilesDao.saveAndFlush(apis.get(0));
 
     try {
-      resultActions = webMock.perform( mockHttpServletRequestBuilder );
+      resultActions = webMock.perform(mockHttpServletRequestBuilder);
       MockHttpServletResponse result = resultActions.andReturn().getResponse();
       String content = result.getContentAsString();
       assertThat(content).isNotNull().contains("[]");
@@ -357,6 +343,161 @@ public class ProductMgrAPIsTest {
     } catch (Exception e) {
       e.printStackTrace();
     }
+  }
+
+
+  @Test
+  public void testGetProductInstance() {
+    MockMvc webMock = MockMvcBuilders.webAppContextSetup(webCtx).build();
+    // prepare product and product instance
+    uploadZipPakage("plcapp.zip");
+    uploadZipPakage("plcvm.zip");
+
+    List<ProductInstance> pis = piDao.findByProductName("plcvm");
+    assertThat(pis).isNotNull().hasSize(2);
+
+    pis = piDao.findCommon("plcvm", null, null, null, null, null, null);
+    assertThat(pis).isNotNull().hasSize(2);
+
+    pis = piDao.findCommon("plcvm", null, "IA", null, null, null, null);
+    assertThat(pis).isNotNull().hasSize(1);
+
+    pis = piDao.findCommon("plcvm", null, "IA", null, "Linux", null, null);
+    assertThat(pis).isNotNull().hasSize(1);
+
+    pis = piDao.findCommon("plcvm", null, "IA", null, "Linux", "Ubuntu", null);
+    assertThat(pis).isNotNull().hasSize(1);
+
+    pis = piDao.findCommon("plcvm", null, "IA", null, "Linux", "Ubuntu", "64bit");
+    assertThat(pis).isNotNull().hasSize(1);
+
+    pis = piDao.findCommon("plcvm", "1.0", "IA", null, "Linux", "Ubuntu", "64bit");
+    assertThat(pis).isNotNull().hasSize(1);
+  }
+
+    @Test
+  public void testGetProductByDeviceSuccess(){
+    MockMvc webMock = MockMvcBuilders.webAppContextSetup(webCtx).build();
+    // prepare product and product instance
+    uploadZipPakage("plcapp.zip");
+    uploadZipPakage("plcvm.zip");
+
+    addAmsClient();
+
+    // test fail to get for subclass
+    String cate = AmsConstant.ProductCategory.runtime_engine.name();
+    MockHttpServletRequestBuilder mockHttpServletRequestBuilder = MockMvcRequestBuilders.get("/ams_user_cloud/ams/v1/product" );
+    mockHttpServletRequestBuilder.param("category", cate );
+    mockHttpServletRequestBuilder.param("subclass", "PLC");
+    mockHttpServletRequestBuilder.param("supported_by_device", "melon");
+    ResultActions resultActions = null;
+    try {
+      resultActions = webMock.perform( mockHttpServletRequestBuilder);
+      MockHttpServletResponse result = resultActions.andReturn().getResponse();
+      String content = result.getContentAsString();
+      assertThat(content).isNotNull().contains("plcvm")
+              .contains("subclass").contains("api_profiles");
+      resultActions.andExpect(status().isOk());
+
+      JSONObject jsonContent = new JSONObject(content);
+      assertThat(jsonContent.getJSONArray("product_list").length()).isEqualTo(1);
+      // assert product
+      JSONObject product = new JSONObject(jsonContent.getJSONArray("product_list").getString(0));
+      assertThat(product.get("name")).isEqualTo("plcvm");
+      assertThat(product.get("category")).isEqualTo("runtime_engine");
+      assertThat(product.get("subclass")).isEqualTo("PLC");
+      assertThat(product.getJSONArray("versions").length()).isEqualTo(1);
+      // assert version
+      JSONObject version = product.getJSONArray("versions").getJSONObject(0);
+      assertThat(version.get("version")).isEqualTo("1.0");
+      assertThat(version.getJSONArray("api_profiles").length()).isEqualTo(2);
+      assertThat(version.getJSONArray("instances").length()).isEqualTo(2);
+    } catch (Exception e) {
+      e.printStackTrace();
+    }
+  }
+
+  @Test
+  public void testGetProductByDeviceFail(){
+    MockMvc webMock = MockMvcBuilders.webAppContextSetup(webCtx).build();
+    // prepare product and product instance
+    uploadZipPakage("plcapp.zip");
+    uploadZipPakage("plcvm.zip");
+
+    addAmsClient();
+    AmsClient clt = amsClientDao.findByClientUuid("melon");
+    clt.setOsVer("2.0");
+    amsClientDao.saveAndFlush(clt);
+
+    // test fail to get for subclass
+    String cate = AmsConstant.ProductCategory.runtime_engine.name();
+    MockHttpServletRequestBuilder mockHttpServletRequestBuilder = MockMvcRequestBuilders.get("/ams_user_cloud/ams/v1/product" );
+    mockHttpServletRequestBuilder.param("category", cate );
+    mockHttpServletRequestBuilder.param("subclass", "PLC");
+    mockHttpServletRequestBuilder.param("supported_by_device", "melon");
+    ResultActions resultActions = null;
+    try {
+      resultActions = webMock.perform( mockHttpServletRequestBuilder);
+      MockHttpServletResponse result = resultActions.andReturn().getResponse();
+      String content = result.getContentAsString();
+      assertThat(content).isNotNull().contains("plcvm");
+      resultActions.andExpect(status().isOk());
+
+      JSONObject jsonContent = new JSONObject(content);
+      assertThat(jsonContent.getJSONArray("product_list").length()).isEqualTo(1);
+      // assert product
+      JSONObject product = new JSONObject(jsonContent.getJSONArray("product_list").getString(0));
+      assertThat(product.get("name")).isEqualTo("plcvm");
+      assertThat(product.get("category")).isEqualTo("runtime_engine");
+      assertThat(product.get("subclass")).isEqualTo("PLC");
+      assertThat(product.getJSONArray("versions").length()).isEqualTo(0);
+    } catch (Exception e) {
+      e.printStackTrace();
+    }
+  }
+
+
+  @Test
+  public void testCheckVersion(){
+    assertThat(HashUtils.checkVerComp("2","1")).isTrue();
+    assertThat(HashUtils.checkVerComp("2","1.0")).isTrue();
+    assertThat(HashUtils.checkVerComp("2","1.9")).isTrue();
+    assertThat(HashUtils.checkVerComp("2.1","2.0")).isTrue();
+    assertThat(HashUtils.checkVerComp("2.1.3","2.1")).isTrue();
+    assertThat(HashUtils.checkVerComp("2.1.3","2.1.2")).isTrue();
+    assertThat(HashUtils.checkVerComp("2.1.3","2.1.2.99")).isTrue();
+    assertThat(HashUtils.checkVerComp("2.1.3.4","2.1.3.3")).isTrue();
+    assertThat(HashUtils.checkVerComp("1", "2")).isFalse();
+    assertThat(HashUtils.checkVerComp("1.0","2")).isFalse();
+    assertThat(HashUtils.checkVerComp("1.9","2")).isFalse();
+    assertThat(HashUtils.checkVerComp("2.0", "2.1")).isFalse();
+    assertThat(HashUtils.checkVerComp("2.1", "2.1.3")).isFalse();
+    assertThat(HashUtils.checkVerComp("2.1.2", "2.1.3")).isFalse();
+    assertThat(HashUtils.checkVerComp("2.1.2.99", "2.1.3")).isFalse();
+    assertThat(HashUtils.checkVerComp("2.1.3.3", "2.1.3.4")).isFalse();
+  }
+
+
+    private void addAmsClient() {
+    AmsClient amsClient = new AmsClient();
+    amsClient.setBits("64bit");
+    amsClient.setClientUuid("melon");
+    amsClient.setCpu("IA");
+    amsClient.setOs("Linux");
+    amsClient.setOsVer("4.15.0");
+    amsClient.setSystem("Ubuntu");
+    amsClient.setSysVer("24.15.0");
+    amsClient.setProvisionTime(new Date());
+    amsClient.setSerial("melon");
+    amsClientDao.saveAndFlush(amsClient);
+  }
+
+  private void uploadZipPakage(String zipName) {
+    String pathUnzip = unzipResource(zipName);
+    assertThat(pathUnzip).isNotNull();
+    ResponseEntity<String> response = productMgrAPIs.handleZipPkgUpload(pathUnzip, null);
+    assertThat(response.getBody()).isNull();
+    assertThat(response.getStatusCode()).isEqualTo(HttpStatus.OK);
   }
 
   @Test

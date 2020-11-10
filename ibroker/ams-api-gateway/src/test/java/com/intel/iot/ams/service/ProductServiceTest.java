@@ -8,6 +8,7 @@ import static org.assertj.core.api.Assertions.assertThat;
 
 import com.intel.iot.ams.entity.Product;
 import com.intel.iot.ams.repository.ProductDao;
+import com.intel.iot.ams.utils.AmsConstant;
 import org.junit.After;
 import org.junit.Before;
 import org.junit.Test;
@@ -15,6 +16,8 @@ import org.junit.runner.RunWith;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.test.context.junit4.SpringRunner;
+
+import java.util.List;
 
 @RunWith(SpringRunner.class)
 @SpringBootTest
@@ -29,8 +32,9 @@ public class ProductServiceTest {
     productA = new Product();
     productA.setUuid("jujube");
     productA.setName("jostaberry");
-    productA.setCategory(29);
+    productA.setCategory(AmsConstant.ProductCategory.runtime_engine.toValue());
     productA.setVendor("blackberry");
+    productA.setSubclass("fruit");
 
     if (productDao.findByUuid(productA.getUuid()) == null) {
       productDao.saveAndFlush(productA);
@@ -48,6 +52,25 @@ public class ProductServiceTest {
         .isNotNull()
         .hasFieldOrPropertyWithValue("name", productA.getName())
         .hasFieldOrPropertyWithValue("category", productA.getCategory());
+  }
+
+  @Test
+  public void testFindCommon() {
+    List<Product> ps = productService.findCommon(null, null, "fruit");
+    assertThat(ps).isNotNull().hasSize(1);
+    assertThat(ps.get(0)).hasFieldOrPropertyWithValue("subclass","fruit")
+            .hasFieldOrPropertyWithValue("category", productA.getCategory())
+            .hasFieldOrPropertyWithValue("name", "jostaberry");
+    ps = productService.findCommon(null, String.valueOf(AmsConstant.ProductCategory.runtime_engine.toValue()), null);
+    assertThat(ps).isNotNull().hasSize(1);
+    assertThat(ps.get(0)).hasFieldOrPropertyWithValue("subclass","fruit")
+            .hasFieldOrPropertyWithValue("category", productA.getCategory())
+            .hasFieldOrPropertyWithValue("name", "jostaberry");
+    ps = productService.findCommon("blackberry", String.valueOf(AmsConstant.ProductCategory.runtime_engine.toValue()), null);
+    assertThat(ps).isNotNull().hasSize(1);
+    assertThat(ps.get(0)).hasFieldOrPropertyWithValue("subclass","fruit")
+            .hasFieldOrPropertyWithValue("category", productA.getCategory())
+            .hasFieldOrPropertyWithValue("name", "jostaberry");
   }
 
   @Test

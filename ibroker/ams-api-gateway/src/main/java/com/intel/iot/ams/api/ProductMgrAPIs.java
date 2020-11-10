@@ -23,7 +23,6 @@ import java.io.File;
 import java.io.IOException;
 import java.util.*;
 import java.util.stream.Collectors;
-import java.util.stream.Stream;
 import javax.servlet.http.HttpServletRequest;
 import lombok.extern.slf4j.Slf4j;
 import net.lingala.zip4j.exception.ZipException;
@@ -111,10 +110,11 @@ public class ProductMgrAPIs {
       @RequestParam(value = "subclass", required = false) String subclass,
       @RequestParam(value = "vendor", required = false) String vendor,
       @RequestParam(value = "supporting_runtime_name", required = false) String supporting_runtime_name,
-      @RequestParam(value = "supporting_runtime_ver", required = false) String supporting_runtime_ver) {
+      @RequestParam(value = "supporting_runtime_ver", required = false) String supporting_runtime_ver,
+      @RequestParam(value = "supported_by_device", required = false) String supported_by_device) {
 
-    logger.info(String.format("uuid=%s name=%s categoryStr=%s subclass=%s vendor=%s supporting_runtime_name=%s supporting_runtime_ver=%s",
-            uuid, name, categoryStr, subclass, vendor, supporting_runtime_name, supporting_runtime_ver));
+    logger.info(String.format("uuid=%s name=%s categoryStr=%s subclass=%s vendor=%s supporting_runtime_name=%s supporting_runtime_ver=%s supported_by_device=%s",
+            uuid, name, categoryStr, subclass, vendor, supporting_runtime_name, supporting_runtime_ver, supported_by_device));
     List<Product> pList = null;
     JsonObject jResult = new JsonObject();
     JsonArray jProductArray = new JsonArray();
@@ -131,7 +131,7 @@ public class ProductMgrAPIs {
       if (p == null) {
         return new ResponseEntity<String>(HttpStatus.NOT_FOUND);
       }
-      return new ResponseEntity<String>(productSerialize(p, null).toString(), HttpStatus.OK);
+      return new ResponseEntity<String>(productSerialize(p, piSrv.getVersionsByProductName(p.getName())).toString(), HttpStatus.OK);
     }
 
     if (name != null) {
@@ -145,7 +145,7 @@ public class ProductMgrAPIs {
       if (p == null) {
         return new ResponseEntity<String>(HttpStatus.NOT_FOUND);
       }
-      return new ResponseEntity<String>(productSerialize(p, null).toString(), HttpStatus.OK);
+      return new ResponseEntity<String>(productSerialize(p, piSrv.getVersionsByProductName(p.getName())).toString(), HttpStatus.OK);
     }
 
     /**
@@ -256,9 +256,11 @@ public class ProductMgrAPIs {
       return new ResponseEntity<String>(HttpStatus.NOT_FOUND);
     }
 
+    Optional<AmsClient> filterDevice = Optional.ofNullable(supported_by_device).map(id -> clientSrv.findByClientUUID(id));
     for (Product p : pList) {
       logger.info("serialize product: {}", p);
-      jProductArray.add(productSerialize(p, null));
+      List<String> matchedVersions = filterDevice.isPresent()?getMatchedVersions(p,filterDevice.get()):piSrv.getVersionsByProductName(p.getName());
+      jProductArray.add(productSerialize(p, matchedVersions));
     }
 
     String ret = jResult.toString();
@@ -266,7 +268,20 @@ public class ProductMgrAPIs {
     return new ResponseEntity<String>(ret, HttpStatus.OK);
   }
 
-  /**
+    private List<String> getMatchedVersions(Product product, AmsClient d) {
+      // match logic from API ams/v1/product/deploy:
+      // 1. 64bit or 32bit product can run on 64bit device
+      // 2. System can be ignore
+      // 3. product cpu is Any | ANY | any | or specified cpu
+      return Optional.ofNullable(product)
+      .map(p->piSrv.findCommon(p.getName(), null, d==null?null:d.getCpu(), d==null?null:d.getPlatform(), d==null?null:d.getOs(), null, "32bit".equals(d.getBits()) ? d.getBits() : null))
+      .filter(pis->pis!=null && !pis.isEmpty())
+      .map(pis->pis.stream().filter(pi->HashUtils.checkVerComp(d.getOsVer(),pi.getOsMin()) && HashUtils.checkVerComp(d.getSysVer(),pi.getSysMin()))
+              .map(pi->pi.getVersion()).distinct().collect(Collectors.toList()))
+      .orElse(new ArrayList<String>());
+    }
+
+    /**
    * ----------------------------------------------------------------
    *
    * <p>Chapter 2.1.2 Upload software product installation package
@@ -501,11 +516,12 @@ public class ProductMgrAPIs {
    * Serialize the Product instance to JSON Object
    *
    * @param p the Product instance to be serialized
+   * @param filterDevice filter product instance by device
    * @return the JSON object serialized from the Product object.
    */
   private JsonObject productSerialize(Product p, List<String> verlist) {
-    List<String> versionList = null;
-
+    logger.info("try to serialize {} for versions {}", p, verlist);
+    List<String> versionList = verlist!=null?verlist:(new ArrayList<String>());
     JsonObject jProduct = new JsonObject();
     jProduct.addProperty("product_uuid", p.getUuid());
     jProduct.addProperty("name", p.getName());
@@ -552,12 +568,6 @@ public class ProductMgrAPIs {
     JsonArray jVersions = new JsonArray();
     jProduct.add("versions", jVersions);
     
-    if (verlist != null) {
-      versionList = verlist;
-    } else {
-      versionList = piSrv.getVersionsByProductName(p.getName());
-    }
-
     if (versionList != null) {
       for (String version : versionList) {
         JsonObject jVersion = new JsonObject();
