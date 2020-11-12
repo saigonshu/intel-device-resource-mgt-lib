@@ -2,12 +2,9 @@
  * Copyright (C) 2020 Intel Corporation. All rights reserved. SPDX-License-Identifier: Apache-2.0
  */
 
-package com.openiot.cloud;
+package com.openiot.cloud.event;
 
-import com.openiot.cloud.alarm.AlarmMain;
 import com.openiot.cloud.sdk.service.IConnectRequest;
-import junit.framework.TestCase;
-import junit.framework.TestSuite;
 import org.junit.Test;
 import org.junit.runner.RunWith;
 import org.springframework.beans.factory.annotation.Value;
@@ -24,8 +21,8 @@ import java.util.concurrent.atomic.AtomicBoolean;
 import static org.assertj.core.api.AssertionsForClassTypes.assertThat;
 
 @RunWith(SpringRunner.class)
-@SpringBootTest(classes = {AlarmMain.class})
-public class AppTest extends TestCase {
+@SpringBootTest
+public class EventTest {
   @Value(value = "${spring.application.name:app_name_undefine}")
   private String appName;
 
@@ -50,5 +47,7 @@ public class AppTest extends TestCase {
     completableFuture.get(1, TimeUnit.SECONDS);
     assertThat(result.get()).isTrue();
   }
+
+
 
 }

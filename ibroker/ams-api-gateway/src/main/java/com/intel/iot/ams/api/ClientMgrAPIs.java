@@ -497,6 +497,11 @@ public class ClientMgrAPIs {
     return new ResponseEntity<String>(HttpStatus.OK);
   }
 
+  @RequestMapping(value = "/ping")
+  @ResponseBody public ResponseEntity<String> ping(){
+    return new ResponseEntity<String>("pong", HttpStatus.OK);
+  }
+
   public boolean userHasRight(AmsClient client, String projectId, TokenContent token) {
     /*
      * Firstly, should check if user has selected project. If not, he can operate

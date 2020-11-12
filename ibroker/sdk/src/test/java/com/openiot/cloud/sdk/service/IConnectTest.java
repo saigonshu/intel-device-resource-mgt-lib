@@ -17,6 +17,7 @@ import java.util.concurrent.atomic.AtomicInteger;
 import org.junit.Test;
 import org.junit.runner.RunWith;
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.http.HttpMethod;
 import org.springframework.http.HttpStatus;
@@ -26,6 +27,9 @@ import org.springframework.test.context.junit4.SpringRunner;
 @RunWith(SpringRunner.class)
 @SpringBootTest(classes = {Application.class})
 public class IConnectTest {
+  @Value(value = "${spring.application.name:app_name_undefine}")
+  private String appName;
+
   @Autowired private IConnect iConnect;
 
   @Autowired private IConnectService iConnectService;
@@ -66,6 +70,28 @@ public class IConnectTest {
     completableFuture.get(6, TimeUnit.SECONDS);
     assertThat(result.get()).isTrue();
   }
+
+    @Test
+    public void testPing() throws Exception {
+        IConnectRequest request1 =
+                IConnectRequest.create(
+                        HttpMethod.GET, "/ping/"+appName, MediaType.TEXT_PLAIN, "anything".getBytes());
+        AtomicBoolean result = new AtomicBoolean(false);
+        CompletableFuture<Boolean> completableFuture = new CompletableFuture<>();
+        request1.send(
+                response -> {
+                    System.out.println("receive a response " + response);
+                    assertThat(response.getStatus()).isEqualTo(HttpStatus.OK);
+
+                    result.set(true);
+                    completableFuture.complete(true);
+                },
+                1,
+                TimeUnit.SECONDS);
+
+        completableFuture.get(1, TimeUnit.SECONDS);
+        assertThat(result.get()).isTrue();
+    }
 
   @Test
   public void testTimeout() throws Exception {

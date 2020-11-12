@@ -254,4 +254,11 @@ public class HttpProxySecurityTest {
         testRestTemplate.exchange("/fc/api/alarm", HttpMethod.GET, entityWithToken, String.class);
     assertThat(responseEntity.getStatusCode()).isEqualTo(HttpStatus.ALREADY_REPORTED);
   }
+
+    @Test
+    public void testPing() throws Exception {
+        ResponseEntity<String> responseEntity = testRestTemplate.getForEntity("/fc/ping/httpproxy", String.class);
+        assertThat(responseEntity.getStatusCode()).isEqualTo(HttpStatus.OK);
+    }
+
 }

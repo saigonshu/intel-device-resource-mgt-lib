@@ -34,6 +34,12 @@ public class HttpProxyServer {
     return "welcome to openiot platform";
   }
 
+  @GetMapping("/fc/ping/httpproxy")
+  @ResponseStatus(HttpStatus.OK)
+  public String pingRequestHandler() {
+    return "pong";
+  }
+
   // @RequestMapping("/**")
   public ResponseEntity<byte[]> defaultRequestHandlerSync(RequestEntity<byte[]> request) {
     CompletableFuture<ResponseEntity<byte[]>> responseFuture = new CompletableFuture<>();
@@ -81,8 +87,8 @@ public class HttpProxyServer {
     try {
       Authentication auth = SecurityContextHolder.getContext().getAuthentication();
       Map<String, String> extraParam = new HashMap<>();
-      if (auth != null) {
-        TokenContent tokenContent = (TokenContent) auth.getDetails();
+      if (auth != null && (auth.getDetails() instanceof TokenContent)) {
+        TokenContent tokenContent = (TokenContent) (auth.getDetails());
         extraParam.put(ConstDef.MSG_KEY_USR, tokenContent.getUser());
         extraParam.put(ConstDef.MSG_KEY_PRJ, tokenContent.getProject());
         if (tokenContent.getRole() != null) {

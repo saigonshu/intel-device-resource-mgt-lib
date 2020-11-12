@@ -7,6 +7,8 @@ package com.openiot.cloud.sdk.service;
 import com.openiot.cloud.base.help.BaseUtil;
 import com.openiot.cloud.base.help.ConstDef;
 import com.openiot.cloud.sdk.utilities.UrlUtil;
+
+import java.util.Date;
 import java.util.Map;
 import java.util.Set;
 import javax.jms.*;
@@ -14,6 +16,7 @@ import org.apache.activemq.ActiveMQConnectionFactory;
 import org.apache.activemq.command.ActiveMQMapMessage;
 import org.apache.activemq.command.ActiveMQQueue;
 import org.apache.activemq.jms.pool.PooledConnectionFactory;
+import org.apache.commons.lang.time.DateUtils;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -68,12 +71,13 @@ public class JmsMqClient extends MqClient {
           registar.setEndpointRegistry(registry);
           registar.setContainerFactory(sdkJmsListenerContainerFactory);
           SimpleJmsListenerEndpoint endpoint = new SimpleJmsListenerEndpoint();
-          endpoint.setId("rest_" + url);
+          String id = String.format("%s-%s" , url, new Date().getTime());
+          endpoint.setId(id);
           endpoint.setConcurrency("1");
           endpoint.setDestination(url);
           endpoint.setMessageListener(jmsListener);
           registar.registerEndpoint(endpoint, sdkJmsListenerContainerFactory);
-          logger.info("listening: " + url + " [for requests]");
+          logger.info("listening: {} with id {}", url, id);
         }
       }
     }

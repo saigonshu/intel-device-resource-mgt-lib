@@ -38,6 +38,7 @@ public class ApiJwtAuthenticationTokenFilter extends GenericFilter {
 
   private static final List<AntPathRequestMatcher> passJWTAuthenticationList =
       Stream.of(
+              new AntPathRequestMatcher("/ams_user_cloud/ping", HttpMethod.GET.name()),
               new AntPathRequestMatcher("/api/user", HttpMethod.GET.name()),
               new AntPathRequestMatcher("/api/user", HttpMethod.POST.name()),
               new AntPathRequestMatcher("/api/user/login"),

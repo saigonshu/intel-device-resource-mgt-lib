@@ -19,6 +19,7 @@ import com.openiot.cloud.ibroker.IBrokerMain;
 import com.openiot.cloud.ibroker.base.protocols.ilink.ILinkCoapOverTcpMessageHandler;
 import com.openiot.cloud.ibroker.mq.DefaultJmsHandler;
 import com.openiot.cloud.ibroker.utils.ILinkMessageBuilder;
+import com.openiot.cloud.sdk.service.IConnectRequest;
 import io.netty.bootstrap.Bootstrap;
 import io.netty.buffer.ByteBuf;
 import io.netty.buffer.Unpooled;
@@ -61,7 +62,11 @@ import org.mockito.Mock;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.boot.test.context.SpringBootTest;
+import org.springframework.http.HttpMethod;
+import org.springframework.http.HttpStatus;
+import org.springframework.http.MediaType;
 import org.springframework.test.context.junit4.SpringRunner;
 import org.springframework.test.util.ReflectionTestUtils;
 import org.springframework.util.StopWatch;
@@ -71,6 +76,9 @@ import org.springframework.util.StopWatch;
 public class IBrokerMainTest {
   private static final Logger logger = LoggerFactory.getLogger(IBrokerMainTest.class);
   @Autowired private ObjectMapper objectMapper;
+
+  @Value(value = "${spring.application.name:app_name_undefine}")
+  private String appName;
 
   class IBrokerClient {
     private final Logger logger = LoggerFactory.getLogger(IBrokerClient.class);
@@ -814,4 +822,27 @@ public class IBrokerMainTest {
       logger.debug(stopWatch.prettyPrint());
     }
   }
+
+  @Test
+  public void testPing() throws Exception {
+    IConnectRequest request1 =
+            IConnectRequest.create(
+                    HttpMethod.GET, "/ping/"+appName, MediaType.TEXT_PLAIN, "anything".getBytes());
+    AtomicBoolean result = new AtomicBoolean(false);
+    CompletableFuture<Boolean> completableFuture = new CompletableFuture<>();
+    request1.send(
+            response -> {
+              System.out.println("receive a response " + response);
+              assertThat(response.getStatus()).isEqualTo(HttpStatus.OK);
+
+              result.set(true);
+              completableFuture.complete(true);
+            },
+            1,
+            TimeUnit.SECONDS);
+
+    completableFuture.get(1, TimeUnit.SECONDS);
+    assertThat(result.get()).isTrue();
+  }
+
 }

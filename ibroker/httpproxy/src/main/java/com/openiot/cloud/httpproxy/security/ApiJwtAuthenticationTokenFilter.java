@@ -35,10 +35,14 @@ public class ApiJwtAuthenticationTokenFilter extends GenericFilter {
   @Value("${jwt.tokenHead}")
   private String tokenPrefix;
 
+//  @Value("${server.context-path:/fc}")
+  private final static String contextPath = "/fc";
+
   @Autowired TokenClient tokenClient;
 
   private static final List<AntPathRequestMatcher> passJWTAuthenticationList =
       Stream.of(
+              new AntPathRequestMatcher(contextPath+"/ping/*", HttpMethod.GET.name()),
               new AntPathRequestMatcher("/api/user", HttpMethod.GET.name()),
               new AntPathRequestMatcher("/api/user", HttpMethod.POST.name()),
               new AntPathRequestMatcher("/api/user/login"),
@@ -63,6 +67,7 @@ public class ApiJwtAuthenticationTokenFilter extends GenericFilter {
 
     logger.info("match the request path {} if able to skip", request.getRequestURI());
     if (passJWTAuthenticationList.stream().anyMatch(matcher -> matcher.matches(request))) {
+      logger.info("matched the matcher {}", getFilterName());
       chain.doFilter(req, res);
       return;
     }

@@ -51,6 +51,8 @@ public class ApiSecurityConfig extends WebSecurityConfigurerAdapter {
             }));
 
     http.authorizeRequests()
+        .antMatchers(HttpMethod.GET, "/fc/ping/*")
+        .permitAll()
         .antMatchers(HttpMethod.POST, "/fc/meta/**")
         .hasRole("SYS_ADMIN")
         .antMatchers(HttpMethod.PUT, "/fc/meta/**")

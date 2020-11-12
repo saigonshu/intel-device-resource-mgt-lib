@@ -13,7 +13,10 @@ import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.beans.factory.config.ConfigurableBeanFactory;
+import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Scope;
+import org.springframework.http.HttpStatus;
+import org.springframework.http.MediaType;
 import org.springframework.stereotype.Component;
 
 @Component
@@ -34,6 +37,9 @@ public class IConnect {
   @Value(value = "${mq.password:manager}")
   private String mqPassword;
 
+  @Value(value = "${spring.application.name:app_name_undefine}")
+  private String appName;
+
   private static IConnect instance;
 
   static IConnect getInstance() {
@@ -46,6 +52,20 @@ public class IConnect {
     instance = this;
     logger.info(
         "IConnect init " + System.identityHashCode(this) + "," + System.identityHashCode(mqClient));
+    if (JmsMqClient.class.isAssignableFrom((mqClient.getClass()))) {
+      mqClient.addMessageListener(new IConnectJMSMessageListener(pingService()));
+    } else {
+      mqClient.addMessageListener(new IConnectAmqpMessageListener(pingService()));
+    }
+  }
+
+  private IConnectService pingService() {
+    IConnectService pingSvc = new IConnectService();
+    String url = "/ping/" + appName;
+    pingSvc.addHandler(url, req->{
+      IConnectResponse.createFromRequest(req, HttpStatus.OK, MediaType.TEXT_PLAIN, String.join("pong from ", appName).getBytes())
+              .send(); });
+    return pingSvc;
   }
 
   public void startService(IConnectService service) {

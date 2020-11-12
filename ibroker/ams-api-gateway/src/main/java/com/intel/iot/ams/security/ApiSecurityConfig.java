@@ -50,7 +50,10 @@ public class ApiSecurityConfig extends WebSecurityConfigurerAdapter {
               response.sendError(HttpServletResponse.SC_FORBIDDEN);
             }));
 
-    http.authorizeRequests().anyRequest().authenticated();
+    http.authorizeRequests()
+            .antMatchers("/ams_user_cloud/ping", HttpMethod.GET.name())
+            .permitAll()
+            .anyRequest().authenticated();
   }
 
   @Bean
