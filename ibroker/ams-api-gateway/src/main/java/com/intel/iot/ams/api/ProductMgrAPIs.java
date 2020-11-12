@@ -260,7 +260,8 @@ public class ProductMgrAPIs {
     for (Product p : pList) {
       logger.info("serialize product: {}", p);
       List<String> matchedVersions = filterDevice.isPresent()?getMatchedVersions(p,filterDevice.get()):piSrv.getVersionsByProductName(p.getName());
-      jProductArray.add(productSerialize(p, matchedVersions));
+      JsonObject jp = productSerialize(p, matchedVersions);
+      if(jp!=null) jProductArray.add(jp);
     }
 
     String ret = jResult.toString();
@@ -278,7 +279,7 @@ public class ProductMgrAPIs {
       .filter(pis->pis!=null && !pis.isEmpty())
       .map(pis->pis.stream().filter(pi->HashUtils.checkVerComp(d.getOsVer(),pi.getOsMin()) && HashUtils.checkVerComp(d.getSysVer(),pi.getSysMin()))
               .map(pi->pi.getVersion()).distinct().collect(Collectors.toList()))
-      .orElse(new ArrayList<String>());
+      .orElse(null);
     }
 
     /**
@@ -520,8 +521,9 @@ public class ProductMgrAPIs {
    * @return the JSON object serialized from the Product object.
    */
   private JsonObject productSerialize(Product p, List<String> verlist) {
+    if(verlist==null) return null;
     logger.info("try to serialize {} for versions {}", p, verlist);
-    List<String> versionList = verlist!=null?verlist:(new ArrayList<String>());
+    List<String> versionList = verlist;
     JsonObject jProduct = new JsonObject();
     jProduct.addProperty("product_uuid", p.getUuid());
     jProduct.addProperty("name", p.getName());
