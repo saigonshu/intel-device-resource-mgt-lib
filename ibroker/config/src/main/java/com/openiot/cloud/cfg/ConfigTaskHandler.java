@@ -179,9 +179,11 @@ public class ConfigTaskHandler implements IConnectResponseHandler {
     logger.debug("going to generatePlcMgrConfiguration for {}", gateway.getId());
     Optional<List<Device>> childDevices = Optional.ofNullable(devRepo.findByIAgentId(gateway.getId()));
     Optional<List<Device>> vplcs = childDevices.filter(ds->ds!=null && !ds.isEmpty()).map(ds -> ds.stream()
+            .filter(d -> d.getEnabled()==null || d.getEnabled())
             .filter(d -> d.getDeviceType()!=null && d.getDeviceType().equals(ConstDef.DEV_TYPE_VPLC))
             .collect(Collectors.toList()));
     Optional<List<Device>> rplcs = childDevices.filter(ds->ds!=null && !ds.isEmpty()).map(ds -> ds.stream()
+            .filter(d -> d.getEnabled()==null || d.getEnabled())
             .filter(d -> d.getDeviceType()!=null && d.getDeviceType().equals(ConstDef.DEV_TYPE_RPLC))
             .collect(Collectors.toList()));
     Optional<PlcManagerConfig> plcMgrCfg =

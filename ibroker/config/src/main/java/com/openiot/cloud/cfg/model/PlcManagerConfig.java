@@ -466,7 +466,7 @@ public class PlcManagerConfig {
                         }).collect(Collectors.toList());
                     })
                     .orElse(null);
-            plcMgrCfg.setvPlcs(vPlcS);
+            if(vPlcS!=null) plcMgrCfg.setvPlcs(vPlcS);
 
             //3. for plcMgrCfg.real-plc
             List<RealPlc> rPlcS = rplcs.filter(vps -> !vps.isEmpty())
@@ -490,7 +490,7 @@ public class PlcManagerConfig {
                         }).collect(Collectors.toList());
                     })
                     .orElse(null);
-            plcMgrCfg.setrPlcs(rPlcS);
+            if(rPlcS!=null) plcMgrCfg.setrPlcs(rPlcS);
 
             return plcMgrCfg;
         }).orElse(null);

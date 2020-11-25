@@ -112,6 +112,47 @@ public class PlcMgrConfigTest {
   }
 
   @Test
+  public void testPlcMgrConfigWithDisablePlc() {
+    try {
+      String deviceId = "plc-gw";
+      Device device = devRepo.findOneById(deviceId);
+      Device.Config cfg = device.getConfig();
+      cfg.setUserCfgs(new ArrayList<>());
+      device.setConfig(cfg);
+      System.out.println("--> " + device);
+      Optional<List<Device>> childDevices = Optional.ofNullable(devRepo.findByIAgentId(deviceId));
+      childDevices.filter(ds->!ds.isEmpty()).map(ds -> ds.stream()
+              .filter(d -> d.getDeviceType().equals(ConstDef.DEV_TYPE_VPLC))
+              .map(d->{d.setEnabled(false); return d;})
+              .collect(Collectors.toList()));
+
+      Optional<List<Device>> vplcs = childDevices.filter(ds->!ds.isEmpty()).map(ds -> ds.stream()
+              .filter(d -> d.getEnabled()==null || d.getEnabled())
+              .filter(d -> d.getDeviceType().equals(ConstDef.DEV_TYPE_VPLC))
+              .collect(Collectors.toList()));
+      Optional<List<Device>> rplcs = childDevices.filter(ds->!ds.isEmpty()).map(ds -> ds.stream()
+              .filter(d -> d.getEnabled()==null || d.getEnabled())
+              .filter(d -> d.getDeviceType().equals(ConstDef.DEV_TYPE_RPLC))
+              .collect(Collectors.toList()));
+      PlcManagerConfig devCfg = PlcManagerConfig.from(Optional.ofNullable(device), vplcs, rplcs);
+      System.out.println("--> " + devCfg);
+
+      assertThat(devCfg)
+              .isNotNull()
+              .hasFieldOrPropertyWithValue("id", "plc-gw")
+              .hasFieldOrPropertyWithValue("peer", null)
+              .hasFieldOrPropertyWithValue("vPlcs", null)
+              .hasFieldOrProperty("rPlcs")
+              .hasFieldOrPropertyWithValue("credential", null);
+
+      assertThat(devCfg.toJsonString()).isNotNull().doesNotContain("vplc-1");
+
+    } catch (Exception e) {
+      e.printStackTrace();
+    }
+  }
+
+  @Test
   public void testCheckAndBuildGateway() {
     try {
       handler.generateDevConfiguration("plc-gw");
