@@ -34,6 +34,10 @@ public class ProductDeployService extends BaseService<Integer, ProductDeploy> {
     return productSettingDao.findByClientUuidAndProductName(clientUuid, productName);
   }
 
+  public ProductDeploy findByClientUuidAndProductNameAndVersion(String clientUuid, String productName, String version) {
+    return productSettingDao.findByClientUuidAndProductNameAndVersion(clientUuid, productName, version);
+  }
+
   public void removeByClientUUID(String uuid) {
     productSettingDao.removeByClientUuid(uuid);
   }

@@ -1156,6 +1156,13 @@ public class ClientProductDeployAPIs {
           "AMS has no suitable product version package for this client", HttpStatus.NOT_FOUND);
     }
 
+    ProductDeploy pd = deploySrv.findByClientUuidAndProductNameAndVersion(info.getClientUuid(), p.getName(), info.getVersion());
+    if (pd != null) {
+      logger.warn("product instance of [{}, {}] already deployed on client {}", p.getName(), info.getVersion(), client);
+      return new ResponseEntity<String>(
+              "AMS has already product version package for this client", HttpStatus.OK);
+    }
+
     /** FW product name must be comply with client product name */
     if (p.getCategory() == AmsConstant.ProductCategory.fw_product.toValue() && !p.getName().equals(client.getDeviceType())) {
       return new ResponseEntity<String>(
@@ -1257,6 +1264,13 @@ public class ClientProductDeployAPIs {
       if (instance == null) {
         return new ResponseEntity<String>(
             "AMS has no suitable product version package for this client", HttpStatus.BAD_REQUEST);
+      }
+
+      ProductDeploy pd = deploySrv.findByClientUuidAndProductNameAndVersion(info.getClientUuid(), p.getName(), info.getVersion());
+      if (pd != null) {
+        logger.warn("product instance of [{}, {}] already deployed on client {}", p.getName(), info.getVersion(), client);
+        return new ResponseEntity<String>(
+                "AMS has already product version package for this client", HttpStatus.OK);
       }
 
       /** If the product is fw_app_wasm and aot_enable is true, check if the aot can be done */

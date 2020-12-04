@@ -153,6 +153,52 @@ public class ClientProductDeployAPIsTest {
   }
 
   @Test
+  public void testDeployProdcutAgainSuccess(){
+    MockMvc webMock = MockMvcBuilders.webAppContextSetup(webCtx).build();
+    AmsClient client = amsClientSvr.findByClientUUID("melon");
+    assertThat(deploySrv.findByClientUuidAndProductNameAndVersion(client.getClientUuid(), "plcvm", "1.0")).isNull();
+    assertThat(client)
+            .hasFieldOrPropertyWithValue("serial", "melon")
+            .hasFieldOrPropertyWithValue("clientUuid", "melon");
+
+    // test successfully get for subclass
+    String cate = AmsConstant.ProductCategory.managed_app.name();
+    MockHttpServletRequestBuilder mockHttpServletRequestBuilder = MockMvcRequestBuilders.post("/ams_user_cloud/ams/v1/product/deploy" );
+    mockHttpServletRequestBuilder.content(String.format(
+            "{\"client_uuid\":\"%s\",\"product_name\":\"plcvm\",\"category\":\"runtime_engine\",\"version\":\"1.0\"}",
+            client.getClientUuid()));
+    mockHttpServletRequestBuilder.contentType(MediaType.APPLICATION_JSON);
+    ResultActions resultActions;
+    try {
+      assertThat(deploySrv.findByClientUuidAndProductNameAndVersion(client.getClientUuid(), "plcvm", "1.0")).isNull();
+      resultActions = webMock.perform( mockHttpServletRequestBuilder);
+      MockHttpServletResponse result = resultActions.andReturn().getResponse();
+      assertThat(result.getContentAsString()).isNotNull().isEqualTo("");
+      resultActions.andExpect(status().isOk());
+    } catch (Exception e) {
+      e.printStackTrace();
+    }
+
+    // deploy again
+    try {
+      resultActions = webMock.perform( mockHttpServletRequestBuilder);
+      MockHttpServletResponse result = resultActions.andReturn().getResponse();
+      assertThat(result.getContentAsString()).isNotNull().isEqualTo("AMS has already product version package for this client");
+      resultActions.andExpect(status().isOk());
+    } catch (Exception e) {
+      e.printStackTrace();
+    }
+
+    // test deploy record
+    List<ProductDeploy> deploys = deploySrv.findByClientUUID(client.getClientUuid());
+    assertThat(deploys).isNotNull().hasSize(1);
+    assertThat(deploys.get(0)).isNotNull()
+            .hasFieldOrPropertyWithValue("clientUuid", client.getClientUuid())
+            .hasFieldOrPropertyWithValue("productName", "plcvm")
+            .hasFieldOrPropertyWithValue("version", "1.0");
+  }
+
+  @Test
   public void testDeployProdcutFail(){
     MockMvc webMock = MockMvcBuilders.webAppContextSetup(webCtx).build();
     AmsClient client = amsClientSvr.findByClientUUID("melon");

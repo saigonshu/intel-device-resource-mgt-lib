@@ -59,6 +59,14 @@ public class ProductChanges {
     this.enableTime = enableTime;
   }
 
-
-
+  @Override
+  public String toString() {
+    return "ProductChanges{" +
+            "id=" + id +
+            ", clientUuid='" + clientUuid + '\'' +
+            ", downloadId='" + downloadId + '\'' +
+            ", productName='" + productName + '\'' +
+            ", enableTime=" + enableTime +
+            '}';
+  }
 }

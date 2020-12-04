@@ -114,6 +114,7 @@ public class ClientAllCfgResource extends CoapResource {
     JsonArray jResult = new JsonArray();
 
     for (ClientCfgCheckPoint cp : cpList) {
+      logger.info("process check point: "+cp);
       List<CfgIdentifier> idList =
           ServiceBundle.getInstance().getCfgIdSrv().findByUserNameAndTargetType(cp.getProductName(),
                                                                                 cp.getTargetType());
@@ -272,12 +273,15 @@ public class ClientAllCfgResource extends CoapResource {
 
             jElement.addProperty("h", content.getContentHash());
             jResult.add(jElement);
+            logger.info("find new content for check point "+cp.getTargetType()+" : " + content.getContent());
           }
         }
       }
     }
 
     resp = new Response(ResponseCode.CONTENT);
+    String payload = jResult.toString();
+    logger.info("Response payload: "+payload);
     resp.setPayload(jResult.toString());
     exchange.respond(resp);
   }

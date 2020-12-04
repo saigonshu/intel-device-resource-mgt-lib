@@ -57,4 +57,14 @@ public class ClientCfgCheckPoint {
     this.targetId = targetId;
   }
 
+  @Override
+  public String toString() {
+    return "ClientCfgCheckPoint{" +
+            "id=" + id +
+            ", clientId=" + clientId +
+            ", productName='" + productName + '\'' +
+            ", targetType='" + targetType + '\'' +
+            ", targetId='" + targetId + '\'' +
+            '}';
+  }
 }

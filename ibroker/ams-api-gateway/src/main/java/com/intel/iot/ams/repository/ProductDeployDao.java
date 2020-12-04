@@ -19,6 +19,8 @@ public interface ProductDeployDao extends JpaRepository<ProductDeploy, Integer> 
 
   public ProductDeploy findByClientUuidAndProductName(String clientUuid, String productName);
 
+  public ProductDeploy findByClientUuidAndProductNameAndVersion(String clientUuid, String productName, String version);
+
   public void removeByClientUuid(String uuid);
 
   public void removeByProductDeviceId(String deviceId);

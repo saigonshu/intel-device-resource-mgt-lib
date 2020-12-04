@@ -67,4 +67,15 @@ public class ProductDeploy {
     this.isAot = isAot;
   }
 
+  @Override
+  public String toString() {
+    return "ProductDeploy{" +
+            "id=" + id +
+            ", productDeviceId='" + productDeviceId + '\'' +
+            ", productName='" + productName + '\'' +
+            ", clientUuid='" + clientUuid + '\'' +
+            ", version='" + version + '\'' +
+            ", isAot=" + isAot +
+            '}';
+  }
 }

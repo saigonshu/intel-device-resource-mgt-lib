@@ -162,8 +162,10 @@ public class AmsTaskHandler implements Runnable {
     List<ProductDeploy> deploys = findAllDeploy(client.getClientUuid());
     if (deploys != null) {
       for (ProductDeploy deploy : deploys) {
+        logger.info("processing deploy: "+deploy);
         Product p = productSrv.findByName(deploy.getProductName());
         if (p == null) {
+          logger.warn("No product founded fot deploy: "+deploy);
           continue;
         }
 
@@ -192,6 +194,7 @@ public class AmsTaskHandler implements Runnable {
             if (p.getCategory() != ProductCategory.fw_app_wasm.toValue()
                     || deploy.getIsAot().equals(install.getIsAot())) {
               changeSrv.removeByClientUuidAndProductName(client.getClientUuid(), p.getName());
+              logger.warn("skip since fromVersion==toVersion fot deploy: "+deploy);
               continue;
             }
           }
@@ -199,6 +202,7 @@ public class AmsTaskHandler implements Runnable {
           if (productName.equals("ams_client")) {
             if (pDeployInstance.getVersion().equals(client.getAmsClientVersion())) {
               changeSrv.removeByClientUuidAndProductName(client.getClientUuid(), p.getName());
+              logger.warn("skip ams client since fromVersion==toVersion fot deploy: "+deploy);
               continue;
             }
           }
@@ -263,7 +267,12 @@ public class AmsTaskHandler implements Runnable {
               change.setEnableTime(this.getTimeAddMinutes(currentTimeslot, 1));
             }
             changeSrv.save(change);
+            logger.info("add a new product change: " + change);
+          }else{
+            logger.warn("No download package available for deploy: "+deploy);
           }
+        }else{
+          logger.warn("No product instance found for deploy: "+deploy);
         }
       }
     }
@@ -301,6 +310,7 @@ public class AmsTaskHandler implements Runnable {
           change.setClientUuid(client.getClientUuid());
           change.setProductName(install.getProductName());
           changeSrv.save(change);
+          logger.info("delete a product change without download ID: " + change);
         }
       }
     }
@@ -350,8 +360,9 @@ public class AmsTaskHandler implements Runnable {
     return true;
   }
 
-  private ProductDownloadPackage createUpdatePkg(String productName, Integer fromId, Integer toId,
+  private ProductDownloadPackage createUpdatePkg(String productName, Integer oFromId, Integer toId,
                                                  boolean isAot) {
+    Integer fromId = (oFromId==null)?null:new Integer(oFromId);
 
     if (productName == null || toId == null) {
       return null;
@@ -369,13 +380,17 @@ public class AmsTaskHandler implements Runnable {
 
     PackageInfo packInfo = null;
     if (p.getCategory() == ProductCategory.fw_product.toValue()) {
+      fromId = null;
       packInfo = createFwPkg(p, to);
     } else if (p.getCategory() == ProductCategory.imrt_app.toValue()) {
+      fromId = null;
       packInfo = createFullBpk(p, to);
     } else if (p.getCategory() == ProductCategory.fw_app_wasm.toValue()) {
+      fromId = null;
       packInfo = createFwAppPkg(p, to, isAot);
     } else if (p.getCategory() == ProductCategory.runtime_engine.toValue() ||
             p.getCategory() == ProductCategory.managed_app.toValue()) {
+      fromId = null;
       packInfo = createPkgFromExistingTar(p, to);
     } else {
       packInfo = createDeltaTarPkg(p, fromId, to);

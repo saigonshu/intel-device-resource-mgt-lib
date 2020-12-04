@@ -109,8 +109,9 @@ public class ProductChangeResource extends CoapResource {
             }
           }
           resp = new Response(ResponseCode.CONTENT);
-          resp.setPayload(jResult.toString());
-          logger.info("Resp: " + jResult.toString());
+          String payload = jResult.toString();
+          logger.info("Resp payload: " + payload);
+          resp.setPayload(payload);
         }
 
         client.setLastConnectionTime(new Date());
